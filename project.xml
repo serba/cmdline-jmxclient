@@ -29,7 +29,11 @@
   the Internet Archive's web scale crawler. To use, do the following to
   obtain usage:
   &lt;code&gt;% java -jar cmdline-jmxclient.jar&lt;/code&gt;.  Requires
-  JDK1.5.0.
+  JDK1.5.0 on both client and remote server-side.  The remote server
+  must be started with the following system properties: 
+  &lt;code&gt;%-Dcom.sun.management.jmxremote.remote=PORT
+  -Dcom.sun.management.jmxremote.authenticate=false
+  -Dcom.sun.management.jmxremote.ssl=false&lt;/code&gt;.
   </description>
   <!-- a short description of what the project does -->
   <shortDescription>Command-line control of Heritrix</shortDescription>

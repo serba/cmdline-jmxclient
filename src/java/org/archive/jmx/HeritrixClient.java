@@ -59,6 +59,8 @@ import javax.management.remote.JMXServiceURL;
  * and authentication disabled: e.g. Pass the following on
  * command line: <code>-Dcom.sun.management.jmxremote.authenticate=false
  * -Dcom.sun.management.jmxremote.ssl=false</code>.
+ * <p>TODO: Make it so this same client can act as client to the JVM
+ * logging, memory, and thread beans.</p>
  * @author stack
  */
 public class HeritrixClient {
@@ -82,11 +84,13 @@ public class HeritrixClient {
         " cmdline-jmxclient.jar HOST:PORT [COMMAND]\n" +
         "Options:\n" +
         " HOST:PORT Hostname and port to connect to. E.g. localhost:8081\n" +
-        " COMMAND   Optional operation to run or attribute to fetch.  If none\n" +
-        "           supplied, all operations and attributes are listed.\n" +
-        "           Attributes begin with a capital letter: e.g. 'State' or\n" +
-        "           'Started'.  Operations begin with lowercase and include:\n" +
-        "           'stop', 'pause'.\n" +
+        " COMMAND   Optional operation to run or attribute to fetch.  If" +
+        " none supplied,\n" +
+        "           all operations and attributes are listed. Attributes" +
+        " begin with a\n" +
+        "           capital letter: e.g. 'Status' or 'Started'." +
+        " Operations do not.\n" +
+        "           Operations can take arguments.\n" +
         "Requirements:\n" +
         " JDK1.5.0.  Remote side must also be running jdk1.5.0 and be\n" +
         " started with the following system properties set:\n" +
@@ -94,8 +98,9 @@ public class HeritrixClient {
         "     -Dcom.sun.management.jmxremote.authenticate=false\n" +
         "     -Dcom.sun.management.jmxremote.ssl=false\n" +
         "Client Use Examples:\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar crawling-fast:8081\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar crawling-fast:8081 State\n";
+        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081\n" +
+        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 Status\n" +
+        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 schedule=http://arc.org";
     
     /**
      * URL to use connecting to remote machine.
@@ -165,9 +170,26 @@ public class HeritrixClient {
             ObjectInstance instance = mbsc.
                 getObjectInstance(new ObjectName(REMOTE_NAME));
             if (command != null && command.length() > 0) {
-                Object result = Character.isUpperCase(command.charAt(0))?
-                    mbsc.getAttribute(instance.getObjectName(), command):
-                    mbsc.invoke(instance.getObjectName(), command, null, null);
+                Object result = null;
+                if (Character.isUpperCase(command.charAt(0))) {
+                    result = mbsc.getAttribute(instance.getObjectName(),
+                        command);
+                } else {
+                    // Operations may take an argument.   For now, takes one only
+                    // and assumed a String.
+                    Object [] objs = null;
+                    String [] strs = null;
+                    index = command.indexOf('=');
+                    if (index > 0) {
+                        String c = command.substring(0, index);
+                        Object [] o = {command.substring(index + 1)};
+                        objs = o;
+                        String [] s = {"java.lang.String"};
+                        strs = s;
+                        command = c;
+                    }
+                    result = mbsc.invoke(instance.getObjectName(), command, objs, strs);
+                }
                 logger.info(command + ": " + result);
             } else {
                 // No command. List out all methods and attributes.

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<project 
+    default="dist"
+    xmlns:j="jelly:core" 
+    xmlns:define="jelly:define" 
+    xmlns:doc="doc" 
+    xmlns:artifact="artifact" 
+    xmlns:util="jelly:util" 
+    xmlns:maven="jelly:maven"
+    xmlns:ant="jelly:ant">
+
+    <goal name="site:update-sourceforge">
+        <exec executable="rsync" >
+            <arg value="--quiet" />
+            <arg value="--archive" />
+            <arg value="--rsh=ssh" />
+            <arg
+              value="${maven.build.dir}/docs/"/>
+            <arg value="${maven.username}@crawler.archive.org:/home/groups/a/ar/archive-crawler/htdocs/cmdline-jmxclient/" />
+        </exec>
+    </goal>
+
+</project>
