@@ -57,8 +57,16 @@ Operations:
     </section>
 <section name="TODO">
     <p>Find a full-bore cmdline JMX client -- a cmdline jconsole -- rather
-than develop our own else add to this client so it lists available beans and
-then allows specifying bean operations and attribute gets are intended for.</p>
+than develop our own else add to this client so it interrogates and lists
+available beans, operations and attributes just as the JMX HTML adapter does.
+Let the user then specify the operation or attribute with a bean qualifer.
+Other things to do:
+<ul>
+    <li>Implement client-side security; server-side already has ability.</li>
+    <li>Convert the scheduleFile* operations to be scheduleURL* operations
+    so can load seeds and urls over the net.</li>
+</ul>
+</p>
 </section>
 <section name="Limitations">
 <ul>
@@ -69,7 +77,15 @@ uses RMI and RMI works by returning to the client an arbitrarily chosen port
 for it to use in subsequent communications, unless somekind of tunnelling is
 setup, you'll need to have arbitrary port access to the server machine from
 the client (IA Peoples: Run from homeserver).</li>
+<li>Crawler doesn't always know what its doing; Attempts at submitting URLs
+will fail because crawler thinks it ain't crawling when the UI shows otherwise.
+Need to fix.</li>
     </ul>
+</section>
+<section name="References">
+<ul>
+    <li><a href="http://crawler.archive.org/cgi-bin/wiki.pl?JmxControlStatus">JmxControlStatus</a>: Wiki page of notes and survey findings.</li>
+</ul>
 </section>
   </body>
 </document>
