@@ -7,11 +7,11 @@
   <id>cmdline-jmxclient</id>
 
   <!-- a short but descriptive name for the project -->
-  <name>Command-line control of Heritrix</name>
+  <name>Command-line Client for Remote JMX Agent</name>
 
   <!-- The version of the project under development, e.g.
        1.1, 1.2, 2.0-SNAPSHOT -->
-  <currentVersion>0.5.0${version.build.suffix}</currentVersion>
+  <currentVersion>0.6.0${version.build.suffix}</currentVersion>
 
   <!-- details about the organization that 'owns' the project -->
   <organization>
@@ -24,19 +24,17 @@
   <inceptionYear>2004</inceptionYear>
   <package>org.archive.jmx</package>
   <logo>http://www.archive.org/images/logo.gif</logo>
-  <description>A command-line JMX client for remotely controlling
-  &lt;a href="http://crawler.archive.org"&gt;Heritrix&lt;/a&gt;,
-  the Internet Archive's web scale crawler. To use, do the following to
-  obtain usage:
-  &lt;code&gt;% java -jar cmdline-jmxclient.jar&lt;/code&gt;.
+  <description>Command-line JMX Client.
+  Used to go against the SUN JVM 1.5.0 JMX Agent.
+  See &lt;a href="http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html"&gt;Monitoring and Management Using JMX&lt;/a&gt;.
   Requires JDK1.5.0 on both client and remote server-side.  The remote server
-  must be started with the following system properties: 
+  must be started with something like the following system properties: 
   &lt;code&gt;%-Dcom.sun.management.jmxremote.remote=PORT
   -Dcom.sun.management.jmxremote.authenticate=false
   -Dcom.sun.management.jmxremote.ssl=false&lt;/code&gt;.
   </description>
   <!-- a short description of what the project does -->
-  <shortDescription>Command-line control of Heritrix</shortDescription>
+  <shortDescription>Command-line JMX Client</shortDescription>
   <!-- the project home page -->
   <url>http://crawler.archive.org/</url>
   <siteAddress>jakarta.apache.org</siteAddress>

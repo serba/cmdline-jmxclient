@@ -31,7 +31,9 @@ import java.io.StringWriter;
 import java.text.FieldPosition;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
@@ -59,15 +61,9 @@ import javax.management.remote.JMXServiceURL;
 
 /**
  * A Simple Command-Line JMX Client.
- * Connects to the JDK 1.5.0 JMX Agent which gets started if following
- * properties are set on the command line:
- * '-Dcom.sun.management.jmxremote.port=PORT#'.
+ * Connects to the JDK 1.5.0 JMX Agent.
  * See <a href="http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html">Monitoring
- * and Management Using JMX</a>. Because this client
- * doesn't yet do security, start the remote MBean with SSL
- * and authentication disabled: e.g. Also pass the following on
- * command line: <code>-Dcom.sun.management.jmxremote.authenticate=false
- * -Dcom.sun.management.jmxremote.ssl=false</code>.
+ * and Management Using JMX</a>.
  * @author stack
  */
 public class Client {
@@ -81,11 +77,14 @@ public class Client {
      * Usage string.
      */
     private static final String USAGE = "Usage: java -jar" +
-        " cmdline-jmxclient.jar HOST:PORT [BEAN] [COMMAND]\n" +
+        " cmdline-jmxclient.jar USER:PASS HOST:PORT [BEAN] [COMMAND]\n" +
         "Options:\n" +
-        " HOST:PORT Hostname and port to connect to. E.g. localhost:8081." +
-        " Lists\n" +
-        "           registered beans if only argument.\n" +
+        " USER:PASS Username and password. Required. If none, pass '-'.\n" +
+        "           E.g. 'controlRole:secret'\n" +
+        " HOST:PORT Hostname and port to connect to. Required." +
+        " E.g. localhost:8081.\n" +
+        "           Lists registered beans if only USER:PASS and this" +
+        " argument.\n" +
         " BEANNAME  Optional target bean name. If present we list" +
         " available operations\n" +
         "           and attributes.\n" +
@@ -97,21 +96,35 @@ public class Client {
         " Operations do not.\n" +
         "           Operations can take arguments.\n" +
         "Requirements:\n" +
-        " JDK1.5.0.  Remote side must also be running jdk1.5.0 and be\n" +
-        " started with the following system properties set:\n" +
+        " JDK1.5.0. If connecting to a SUN 1.5.0 JDK JMX Agent, remote side" +
+        " must be\n" +
+        " started with system properties such as the following:\n" +
         "     -Dcom.sun.management.jmxremote.port=PORT\n" +
         "     -Dcom.sun.management.jmxremote.authenticate=false\n" +
         "     -Dcom.sun.management.jmxremote.ssl=false\n" +
+        " The above will start the remote server with no password. See\n" +
+        " http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html" +
+        " for more on\n" +
+        " 'Monitoring and Management via JMX'.\n" +
         "Client Use Examples:\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \\\n" +
+        " To list MBeans on a non-password protected remote agent:\n" +
+        "     % java -jar cmdline-jmxclient-X.X.jar - localhost:8081 \\\n" +
         "         org.archive.crawler:name=Heritrix,type=Service\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \\\n" +
+        " To list attributes and attributes of the Heritrix MBean:\n" +
+        "     % java -jar cmdline-jmxclient-X.X.jar - localhost:8081 \\\n" +
         "         org.archive.crawler:name=Heritrix,type=Service \\\n" +
         "         schedule=http://www.archive.org\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \\\n" +
+        " To set logging level to FINE on a password protected JVM:\n" +
+        "     % java -jar cmdline-jmxclient-X.X.jar controlRole:secret" +
+        " localhost:8081 \\\n" +
         "         java.util.logging:type=Logging \\\n" +
         "         setLoggingLevel=org.archive.crawler.Heritrix,FINE";
-     
+    
+    /**
+     * Username + password with colon separator.
+     */
+    private String userpass = null;
+    
     /**
      * URL to use connecting to remote machine.
      */
@@ -175,16 +188,34 @@ public class Client {
      */
     public Client(String [] args)
     throws Exception {
-        if (args.length == 0) {
+        if (args.length == 0 || args.length == 1) {
             usage();
         }
-        this.hostport = args[0];
-        if (args.length > 1) {
-            this.beanName = args[1];
-        }
+        this.userpass = args[0];
+        this.hostport = args[1];
         if (args.length > 2) {
-            this.command = args[2];
+            this.beanName = args[2];
         }
+        if (args.length > 3) {
+            this.command = args[3];
+        }
+    }
+    
+    protected Map getCredentials() {
+        Map env = null;
+        if (this.userpass != null && !this.userpass.equals("-")) {
+            int index = this.userpass.indexOf(':');
+            if (index <= 0) {
+                throw new RuntimeException("Unable to parse: " +
+                    this.userpass);
+            }
+            String [] creds = new String [] {
+                this.userpass.substring(0, index),
+                this.userpass.substring(index + 1)};
+            env = new HashMap(1);
+            env.put(JMXConnector.CREDENTIALS, creds);
+        }
+        return env;
     }
     
     protected void execute()
@@ -194,10 +225,13 @@ public class Client {
         if (index > 0) {
             hostname = hostname.substring(0, index);
         }
+        
         JMXServiceURL rmiurl = 
             new JMXServiceURL("service:jmx:rmi://" + this.hostport +
                 "/jndi/rmi://" + this.hostport + "/jmxrmi"); 
-        JMXConnector jmxc = JMXConnectorFactory.connect(rmiurl, null);
+        JMXConnector jmxc =
+            JMXConnectorFactory.connect(rmiurl, getCredentials());
+        
         
         try {
             MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
