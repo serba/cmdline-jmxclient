@@ -99,7 +99,7 @@ public class Client {
         "Requirements:\n" +
         " JDK1.5.0.  Remote side must also be running jdk1.5.0 and be\n" +
         " started with the following system properties set:\n" +
-        "     -Dcom.sun.management.jmxremote.remote=PORT\n" +
+        "     -Dcom.sun.management.jmxremote.port=PORT\n" +
         "     -Dcom.sun.management.jmxremote.authenticate=false\n" +
         "     -Dcom.sun.management.jmxremote.ssl=false\n" +
         "Client Use Examples:\n" +

@@ -27,7 +27,7 @@ Options:
 Requirements:
  JDK1.5.0.  Remote side must also be running jdk1.5.0 and be
  started with the following system properties set:
-     -Dcom.sun.management.jmxremote.remote=PORT
+     -Dcom.sun.management.jmxremote.port=PORT
      -Dcom.sun.management.jmxremote.authenticate=false
      -Dcom.sun.management.jmxremote.ssl=false
 Client Use Examples:
@@ -41,7 +41,7 @@ Client Use Examples:
          setLoggingLevel=org.archive.crawler.Heritrix,FINE</pre></p>
 
 <p>The remote server must also be running JDK1.5.0 and be started with the
-following system properties: <code>%-Dcom.sun.management.jmxremote.remote=PORT -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false</code>.  These commands start up the JMX Agent that comes with
+following system properties: <code>%-Dcom.sun.management.jmxremote.port=PORT -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false</code>.  These commands start up the JMX Agent that comes with
 the JVM.</p> 
 
 <p>The cmdline-jmxclient can be used to set logging levels remote and to get
