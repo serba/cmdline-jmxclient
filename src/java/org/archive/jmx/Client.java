@@ -1,5 +1,5 @@
 /*
- * HeritrixClient
+ * Client
  *
  * $Id$
  *
@@ -25,66 +25,71 @@
  */
 package org.archive.jmx;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.FieldPosition;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.Iterator;
+import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import javax.management.AttributeNotFoundException;
+import javax.management.InstanceNotFoundException;
+import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
+import javax.management.MBeanException;
 import javax.management.MBeanInfo;
 import javax.management.MBeanOperationInfo;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
+import javax.management.ReflectionException;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 
 
 /**
- * A Simple Command-Line JMX Client for Heritrix.
- * Used to control Heritrix remotely.
- * Connects to the JDK 1.5.0 JMX Agent (Heritrix registers itself
- * with this Agent if its been started).
- * See Heritrix#registerHeritrixMBean(Heritrix) to see
- * how to start the remote JMX Agent and to learn more about how
- * this JMX client/server interaction works.  Because this client
+ * A Simple Command-Line JMX Client.
+ * Connects to the JDK 1.5.0 JMX Agent which gets started if following
+ * properties are set on the command line:
+ * '-Dcom.sun.management.jmxremote.port=PORT#'.
+ * See <a href="http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html">Monitoring
+ * and Management Using JMX</a>. Because this client
  * doesn't yet do security, start the remote MBean with SSL
- * and authentication disabled: e.g. Pass the following on
+ * and authentication disabled: e.g. Also pass the following on
  * command line: <code>-Dcom.sun.management.jmxremote.authenticate=false
  * -Dcom.sun.management.jmxremote.ssl=false</code>.
- * <p>TODO: Make it so this same client can act as client to the JVM
- * logging, memory, and thread beans; as a cmdline jconsole.</p>
  * @author stack
  */
-public class HeritrixClient {
+public class Client {
     /**
      * Logging instance.
      */
     private static final Logger logger =
-        Logger.getLogger(HeritrixClient.class.getName());
-    
-    /**
-     * Name used to register remote Heritrix JMX Bean.
-     * Below string must match the one in Heritrix.
-     */
-    private static final String REMOTE_NAME =
-        "org.archive.crawler:name=Heritrix,type=Service";
+        Logger.getLogger(Client.class.getName());
     
     /**
      * Usage string.
      */
     private static final String USAGE = "Usage: java -jar" +
-        " cmdline-jmxclient.jar HOST:PORT [COMMAND]\n" +
+        " cmdline-jmxclient.jar HOST:PORT [BEAN] [COMMAND]\n" +
         "Options:\n" +
-        " HOST:PORT Hostname and port to connect to. E.g. localhost:8081\n" +
-        " COMMAND   Optional operation to run or attribute to fetch.  If" +
+        " HOST:PORT Hostname and port to connect to. E.g. localhost:8081." +
+        " Lists\n" +
+        "           registered beans if only argument.\n" +
+        " BEANNAME  Optional target bean name. If present we list" +
+        " available operations\n" +
+        "           and attributes.\n" +
+        " COMMAND   Optional operation to run or attribute to fetch. If" +
         " none supplied,\n" +
         "           all operations and attributes are listed. Attributes" +
         " begin with a\n" +
@@ -98,23 +103,41 @@ public class HeritrixClient {
         "     -Dcom.sun.management.jmxremote.authenticate=false\n" +
         "     -Dcom.sun.management.jmxremote.ssl=false\n" +
         "Client Use Examples:\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 Status\n" +
-        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 schedule=http://arc.org";
-    
+        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \\\n" +
+        "         org.archive.crawler:name=Heritrix,type=Service\n" +
+        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \\\n" +
+        "         org.archive.crawler:name=Heritrix,type=Service \\\n" +
+        "         schedule=http://www.archive.org\n" +
+        " % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \\\n" +
+        "         java.util.logging:type=Logging \\\n" +
+        "         setLoggingLevel=org.archive.crawler.Heritrix,FINE";
+     
     /**
      * URL to use connecting to remote machine.
      */
     private String hostport = null;
     
     /**
+     * Target bean name or snippet of bean name.
+     */
+    private String beanName = null;
+    
+    /**
      * Command or attribute to ask the other machine about.
      */
     private String command = null;
     
+    /**
+     * Pattern that matches a command name followed by
+     * an optional equals and optional comma-delimited list
+     * of arguments.
+     */
+    Pattern commandArgsPattern =
+        Pattern.compile("^([^=]+)(?:(?:\\=)(.+))?$");
+    
     
 	public static void main(String[] args) throws Exception {
-        HeritrixClient client = new HeritrixClient();
+        Client client = new Client(args);
         // Set the logger to use our all-on-one-line formatter.
         Logger l = Logger.getLogger("");
         Handler [] hs = l.getHandlers();
@@ -124,10 +147,7 @@ public class HeritrixClient {
                 h.setFormatter(client.new OneLineSimpleLogger());
             }
         }
-        // Process cmdline args.  Procesing results gets added to client
-        // instance.
-        client.init(args);
-        client.doCommand();
+        client.execute();
 	}
     
     protected static void usage() {
@@ -142,72 +162,62 @@ public class HeritrixClient {
         System.exit(exitCode);
     }
 
-    protected void init(String [] args)
+    /**
+     * Shutdown constructor.
+     */
+    private Client() {
+        super();
+    }
+    
+    /**
+     * @param args Command line args.
+     * @throws Exception
+     */
+    public Client(String [] args)
     throws Exception {
-        if (args.length != 2 && args.length != 1) {
+        if (args.length == 0) {
             usage();
         }
-        setHostport(args[0]);
+        this.hostport = args[0];
         if (args.length > 1) {
-            setCommand(args[1]);
+            this.beanName = args[1];
+        }
+        if (args.length > 2) {
+            this.command = args[2];
         }
     }
     
-    protected void doCommand()
+    protected void execute()
     throws Exception {
-        String hostname = getHostport();
-        int index = hostport.indexOf(':');
+        String hostname = this.hostport;
+        int index = this.hostport.indexOf(':');
         if (index > 0) {
             hostname = hostname.substring(0, index);
         }
         JMXServiceURL rmiurl = 
-            new JMXServiceURL("service:jmx:rmi://" + getHostport() +
-                "/jndi/rmi://" + getHostport() + "/jmxrmi"); 
+            new JMXServiceURL("service:jmx:rmi://" + this.hostport +
+                "/jndi/rmi://" + this.hostport + "/jmxrmi"); 
         JMXConnector jmxc = JMXConnectorFactory.connect(rmiurl, null);
         
         try {
             MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-            ObjectInstance instance = mbsc.
-                getObjectInstance(new ObjectName(REMOTE_NAME));
-            if (command != null && command.length() > 0) {
-                Object result = null;
-                if (Character.isUpperCase(command.charAt(0))) {
-                    result = mbsc.getAttribute(instance.getObjectName(),
-                        command);
-                } else {
-                    // Operations may take an argument.   For now, takes one only
-                    // and assumed a String.
-                    Object [] objs = null;
-                    String [] strs = null;
-                    index = command.indexOf('=');
-                    if (index > 0) {
-                        String c = command.substring(0, index);
-                        Object [] o = {command.substring(index + 1)};
-                        objs = o;
-                        String [] s = {"java.lang.String"};
-                        strs = s;
-                        command = c;
-                    }
-                    result = mbsc.invoke(instance.getObjectName(), command, objs, strs);
-                }
-                logger.info(command + ": " + result);
+            ObjectName objName =
+                (this.beanName == null || this.beanName.length() <= 0)?
+                    null: new ObjectName(this.beanName);
+            Set beans = mbsc.queryMBeans(objName, null);
+            if (beans.size() == 1) {
+                ObjectInstance instance =
+                    (ObjectInstance)beans.iterator().next();
+                doBean(mbsc, instance);
             } else {
-                // No command. List out all methods and attributes.
-                MBeanInfo info = mbsc.getMBeanInfo(instance.getObjectName());
-                MBeanAttributeInfo [] attributes  = info.getAttributes();
-                if (attributes.length > 0) {
-                    System.out.println("Attributes:");
-                    for (int i = 0; i < attributes.length; i++) {
-                        System.out.println(' ' + attributes[i].getName() +
-                            ": " + attributes[i].getDescription());
-                    }
-                }
-                MBeanOperationInfo [] operations = info.getOperations();
-                if (operations.length > 0) {
-                    System.out.println("Operations:");
-                    for (int i = 0; i < operations.length; i++) {
-                        System.out.println(' ' + operations[i].getName() +
-                            ": " + operations[i].getDescription());
+                for (Iterator i = beans.iterator(); i.hasNext();) {
+                    Object obj = i.next();
+                    if (obj instanceof ObjectName) {
+                        System.out.println(((ObjectName)obj).
+                            getCanonicalName());
+                    } else if (obj instanceof ObjectInstance) {
+                        System.out.println(((ObjectInstance)obj).
+                            getObjectName());
                     }
                 }
             }
@@ -216,31 +226,68 @@ public class HeritrixClient {
         }
     }
     
-    /**
-     * @return Returns the command.
-     */
-    public String getCommand() {
-        return this.command;
+    protected void doBean(MBeanServerConnection mbsc,
+            ObjectInstance instance)
+    throws IntrospectionException, AttributeNotFoundException,
+            InstanceNotFoundException, MBeanException,
+            ReflectionException, IOException {
+        if (this.command == null || this.command.length() <= 0) {
+            listOptions(mbsc, instance);
+            return;
+        }
+        
+        Object result = null;
+        if (Character.isUpperCase(command.charAt(0))) {
+            result = mbsc.getAttribute(instance.getObjectName(),
+                this.command);
+        } else {
+            // Operations may take arguments.   For now, do strings
+            // only.  Assume strings do not contain ',' or '='.
+            Object [] objs = null;
+            Matcher m = this.commandArgsPattern.matcher(this.command);
+            if (m != null && m.matches()) {
+               String cmd = m.group(1);
+               String args = m.group(2);
+               if (args != null && args.length() > 0) {
+                   objs = args.split(",");
+               }
+               String [] strs = null;
+               if (objs != null && objs.length > 0) {
+                   strs = new String[objs.length];
+                   for (int i = 0; i < objs.length; i++) {
+                       strs[i] = "java.lang.String";
+                   }
+               }
+               result = mbsc.invoke(instance.getObjectName(), cmd,
+                    objs, strs);
+            } else {
+                result = "Failed parse";
+            }
+        }
+        logger.info(this.command + ": " + result);
     }
-    
-    /**
-     * @param command The command to set.
-     */
-    public void setCommand(String command) {
-        this.command = command;}
-    
-    /**
-     * @return Returns the hostport.
-     */
-    public String getHostport() {
-        return this.hostport;
-    }
-    
-    /**
-     * @param h The hostport to set.
-     */
-    public void setHostport(String h) {
-        this.hostport = h;
+
+    protected void listOptions(MBeanServerConnection mbsc,
+            ObjectInstance instance)
+    throws InstanceNotFoundException, IntrospectionException,
+            ReflectionException, IOException {
+        MBeanInfo info = mbsc.getMBeanInfo(instance.getObjectName());
+        MBeanAttributeInfo [] attributes  = info.getAttributes();
+        if (attributes.length > 0) {
+            System.out.println("Attributes:");
+            for (int i = 0; i < attributes.length; i++) {
+                System.out.println(' ' + attributes[i].getName() +
+                    ": " + attributes[i].getDescription());
+            }
+        }
+        MBeanOperationInfo [] operations = info.getOperations();
+        if (operations.length > 0) {
+            System.out.println("Operations:");
+            for (int i = 0; i < operations.length; i++) {
+                System.out.println(' ' + operations[i].getName() +
+                    ": " + operations[i].getDescription());
+            }
+        }
     }
     
     /**

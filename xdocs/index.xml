@@ -9,16 +9,18 @@
 
   <body>
     <section name="Command-line control of Heritrix">
-    <p> A command-line JMX client for remotely controlling Heritrix,
-the Internet Archive's web scale crawler. Requires SUN JDK1.5.0. 
+    <p>A command-line JMX client. Requires SUN JDK1.5.0. 
 To use, do the following to obtain
 usage: <code>% java -jar cmdline-jmxclient.jar</code>. 
 Here is what usage currently looks like:
-    <pre>[debord 892] scripts > ${PATH_TO_JDK1.5.0}/bin/java -jar cmdline-jmxclient-0.2.0.jar
-Usage: java -jar cmdline-jmxclient.jar HOST:PORT [COMMAND]
+    <pre>[debord 604] target > $JAVA_HOME/bin/java -jar cmdline-jmxclient-0.3.0-.jar
+Usage: java -jar cmdline-jmxclient.jar HOST:PORT [BEAN] [COMMAND]
 Options:
- HOST:PORT Hostname and port to connect to. E.g. localhost:8081
- COMMAND   Optional operation to run or attribute to fetch.  If none supplied,
+ HOST:PORT Hostname and port to connect to. E.g. localhost:8081. Lists
+           registered beans if only argument.
+ BEANNAME  Optional target bean name. If present we list available operations
+           and attributes.
+ COMMAND   Optional operation to run or attribute to fetch. If none supplied,
            all operations and attributes are listed. Attributes begin with a
            capital letter: e.g. 'Status' or 'Started'. Operations do not.
            Operations can take arguments.
@@ -29,15 +31,27 @@ Requirements:
      -Dcom.sun.management.jmxremote.authenticate=false
      -Dcom.sun.management.jmxremote.ssl=false
 Client Use Examples:
- % java -jar cmdline-jmxclient-X.X.jar localhost:8081
- % java -jar cmdline-jmxclient-X.X.jar localhost:8081 Status
- % java -jar cmdline-jmxclient-X.X.jar localhost:8081 schedule=http://arc.org</pre></p>
+ % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \
+         org.archive.crawler:name=Heritrix,type=Service
+ % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \
+         org.archive.crawler:name=Heritrix,type=Service \
+         schedule=http://www.archive.org
+ % java -jar cmdline-jmxclient-X.X.jar localhost:8081 \
+         java.util.logging:type=Logging \
+         setLoggingLevel=org.archive.crawler.Heritrix,FINE</pre></p>
 
 <p>The remote server must also be running JDK1.5.0 and be started with the
 following system properties: <code>%-Dcom.sun.management.jmxremote.remote=PORT -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false</code>.  These commands start up the JMX Agent that comes with
-the JVM.  Heritrix notices its presence and attaches itself.</p>
+the JVM.</p> 
 
-<p>Here is current state of the control vocabulary:
+<p>The cmdline-jmxclient can be used to set logging levels remote and to get
+information on the running JVM.  It can also be used to remotely control
+Heritrix.</p>
+
+<p>Heritrix notices if the JVM JMX agent has been launched 
+and attaches its MBeans. 
+Here is current state of the control vocabulary
+for Heritrix:
 <pre>[debord 888] scripts > ${PATH_TO_JDK1.5.0}/bin/java -jar cmdline-jmxclient-0.2.0.jar localhost:8081
 Attributes:
  Status: Attribute exposed for management
@@ -56,11 +70,7 @@ Operations:
 <p>Here is example status on a running job: <code>12/08/2004 12:26:05 -0800 org.archive.jmx.HeritrixClient Status: isRunning=true, isCrawling=true, newAlertCount=0, isCurrentJob=true, currentJob=dmoz4444442, jobStatus=Running, frontierReport="1 queues: 0 in-process; 0 ready; 1 snoozed", Threads Report="4 threads: 4 ABOUT_TO_GET_URI"</code></p>
     </section>
 <section name="TODO">
-    <p>Find a full-bore cmdline JMX client -- a cmdline jconsole -- rather
-than develop our own else add to this client so it interrogates and lists
-available beans, operations and attributes just as the JMX HTML adapter does.
-Let the user then specify the operation or attribute with a bean qualifer.
-Other things to do:
+    <p>
 <ul>
     <li>Implement client-side security; server-side already has ability.</li>
     <li>Convert the scheduleFile* operations to be scheduleURL* operations
