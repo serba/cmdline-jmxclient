@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+
+<document>
+  <properties>
+    <title>Home Page</title>
+    <author email="stack at archive dot org">St.Ack</author>
+    <revision>$Id$</revision>
+  </properties>
+
+  <body>
+    <section name="Command-line control of Heritrix">
+    <p> A command-line JMX client for remotely controlling Heritrix,
+the Internet Archive's web scale crawler. Requires SUN JDK1.5.0. 
+To use, do the following to obtain
+usage: <code>% java -jar cmdline-jmxclient.jar</code>. 
+Here is what usage currently looks like:
+    <pre>[debord 892] scripts > ${PATH_TO_JDK1.5.0}/bin/java -jar cmdline-jmxclient-0.2.0.jar
+Usage: java -jar cmdline-jmxclient.jar HOST:PORT [COMMAND]
+Options:
+ HOST:PORT Hostname and port to connect to. E.g. localhost:8081
+ COMMAND   Optional operation to run or attribute to fetch.  If none supplied,
+           all operations and attributes are listed. Attributes begin with a
+           capital letter: e.g. 'Status' or 'Started'. Operations do not.
+           Operations can take arguments.
+Requirements:
+ JDK1.5.0.  Remote side must also be running jdk1.5.0 and be
+ started with the following system properties set:
+     -Dcom.sun.management.jmxremote.remote=PORT
+     -Dcom.sun.management.jmxremote.authenticate=false
+     -Dcom.sun.management.jmxremote.ssl=false
+Client Use Examples:
+ % java -jar cmdline-jmxclient-X.X.jar localhost:8081
+ % java -jar cmdline-jmxclient-X.X.jar localhost:8081 Status
+ % java -jar cmdline-jmxclient-X.X.jar localhost:8081 schedule=http://arc.org</pre></p>
+
+<p>The remote server must also be running JDK1.5.0 and be started with the
+following system properties: <code>%-Dcom.sun.management.jmxremote.remote=PORT -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false</code>.  These commands start up the JMX Agent that comes with
+the JVM.  Heritrix notices its presence and attaches itself.</p>
+
+<p>Here is current state of the control vocabulary:
+<pre>[debord 888] scripts > ${PATH_TO_JDK1.5.0}/bin/java -jar cmdline-jmxclient-0.2.0.jar localhost:8081
+Attributes:
+ Status: Attribute exposed for management
+Operations:
+ start: Operation exposed for management
+ resume: Operation exposed for management
+ stop: Operation exposed for management
+ schedule: Operation exposed for management
+ pause: Operation exposed for management
+ terminateCurrentJob: Operation exposed for management
+ scheduleForceFetch: Operation exposed for management
+ scheduleSeed: Operation exposed for management
+ scheduleFile: Operation exposed for management
+ scheduleFileForceFetch: Operation exposed for management</pre></p>
+
+<p>Here is example status on a running job: <code>12/08/2004 12:26:05 -0800 org.archive.jmx.HeritrixClient Status: isRunning=true, isCrawling=true, newAlertCount=0, isCurrentJob=true, currentJob=dmoz4444442, jobStatus=Running, frontierReport="1 queues: 0 in-process; 0 ready; 1 snoozed", Threads Report="4 threads: 4 ABOUT_TO_GET_URI"</code></p>
+    </section>
+<section name="TODO">
+    <p>Find a full-bore cmdline JMX client -- a cmdline jconsole -- rather
+than develop our own else add to this client so it lists available beans and
+then allows specifying bean operations and attribute gets are intended for.</p>
+</section>
+<section name="Limitations">
+<ul>
+    <li>SUN JDK1.5.0 Only both for client and server.</li>
+    <li>Not only does the designated remote server port need to be able
+to the client -- i.e. no firewall blocking -- but, because the communication
+uses RMI and RMI works by returning to the client an arbitrarily chosen port
+for it to use in subsequent communications, unless somekind of tunnelling is
+setup, you'll need to have arbitrary port access to the server machine from
+the client (IA Peoples: Run from homeserver).</li>
+    </ul>
+</section>
+  </body>
+</document>

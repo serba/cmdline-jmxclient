@@ -60,7 +60,7 @@ import javax.management.remote.JMXServiceURL;
  * command line: <code>-Dcom.sun.management.jmxremote.authenticate=false
  * -Dcom.sun.management.jmxremote.ssl=false</code>.
  * <p>TODO: Make it so this same client can act as client to the JVM
- * logging, memory, and thread beans.</p>
+ * logging, memory, and thread beans; as a cmdline jconsole.</p>
  * @author stack
  */
 public class HeritrixClient {
