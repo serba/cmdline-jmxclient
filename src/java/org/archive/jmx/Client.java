@@ -50,10 +50,15 @@ import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanException;
 import javax.management.MBeanInfo;
 import javax.management.MBeanOperationInfo;
+import javax.management.MBeanParameterInfo;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
+import java.lang.reflect.InvocationTargetException;
+
+import javax.management.openmbean.CompositeData;
+import javax.management.openmbean.TabularData;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
@@ -232,14 +237,16 @@ public class Client {
         JMXConnector jmxc =
             JMXConnectorFactory.connect(rmiurl, getCredentials());
         
-        
         try {
             MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
             ObjectName objName =
                 (this.beanName == null || this.beanName.length() <= 0)?
                     null: new ObjectName(this.beanName);
             Set beans = mbsc.queryMBeans(objName, null);
-            if (beans.size() == 1) {
+            if (beans.size() == 0) {
+                logger.severe(objName.getCanonicalName() +
+                    " is not a registered bean");
+            } else if (beans.size() == 1) {
                 ObjectInstance instance =
                     (ObjectInstance)beans.iterator().next();
                 doBean(mbsc, instance);
@@ -264,41 +271,154 @@ public class Client {
             ObjectInstance instance)
     throws IntrospectionException, AttributeNotFoundException,
             InstanceNotFoundException, MBeanException,
-            ReflectionException, IOException {
+            ReflectionException, IOException, NoSuchMethodException,
+            InstantiationException, IllegalAccessException,
+            InvocationTargetException, ClassNotFoundException {
+        
+        // If no command, then print out list of attributes and operations.
         if (this.command == null || this.command.length() <= 0) {
             listOptions(mbsc, instance);
             return;
         }
         
-        Object result = null;
-        if (Character.isUpperCase(command.charAt(0))) {
-            result = mbsc.getAttribute(instance.getObjectName(),
-                this.command);
-        } else {
-            // Operations may take arguments.   For now, do strings
-            // only.  Assume strings do not contain ',' or '='.
-            Object [] objs = null;
-            Matcher m = this.commandArgsPattern.matcher(this.command);
-            if (m != null && m.matches()) {
-               String cmd = m.group(1);
-               String args = m.group(2);
-               if (args != null && args.length() > 0) {
-                   objs = args.split(",");
-               }
-               String [] strs = null;
-               if (objs != null && objs.length > 0) {
-                   strs = new String[objs.length];
-                   for (int i = 0; i < objs.length; i++) {
-                       strs[i] = "java.lang.String";
-                   }
-               }
-               result = mbsc.invoke(instance.getObjectName(), cmd,
-                    objs, strs);
-            } else {
-                result = "Failed parse";
+        // Test if attribute or operation.
+        Object result = (Character.isUpperCase(command.charAt(0)))?
+            mbsc.getAttribute(instance.getObjectName(), this.command):
+            doBeanOperation(mbsc, instance);
+        
+        if (result instanceof CompositeData) {
+            // Convert the composite to a printable string.
+            result = recurseCompositeData(new StringBuffer("\n"), "", "",
+                 (CompositeData)result);
+        } else if (result instanceof TabularData) {
+            // Convert the tabular type to a printable string.
+            result = recurseTabularData(new StringBuffer("\n"), "", "",
+                 (TabularData)result);
+        } else if (result instanceof String []) {
+            String [] strs = (String [])result;
+            StringBuffer buffer = new StringBuffer("\n");
+            for (int i = 0; i < strs.length; i++) {
+                buffer.append(strs[i]);
+                buffer.append("\n");
             }
+            result = buffer;
         }
         logger.info(this.command + ": " + result);
+    }
+    
+    protected StringBuffer recurseTabularData(StringBuffer buffer,
+            String indent, String name, TabularData data) {
+        addNameToBuffer(buffer, indent, name);
+        java.util.Collection c = data.values();
+        for (Iterator i = c.iterator(); i.hasNext();) {
+            Object obj = i.next();
+            if (obj instanceof CompositeData) {
+                recurseCompositeData(buffer, indent + " ", "",
+                    (CompositeData)obj);
+            } else if (obj instanceof TabularData) {
+                recurseTabularData(buffer, indent + " ", "",
+                    (TabularData)obj);
+            } else {
+                buffer.append(obj);
+            }
+        }
+        return buffer;
+    }
+    
+    protected StringBuffer recurseCompositeData(StringBuffer buffer,
+            String indent, String name, CompositeData data) {
+        indent = addNameToBuffer(buffer, indent, name);
+        for (Iterator i = data.getCompositeType().keySet().iterator();
+                i.hasNext();) {
+            String key = (String)i.next();
+            Object o = data.get(key);
+            if (o instanceof CompositeData) {
+                recurseCompositeData(buffer, indent + " ", key,
+                    (CompositeData)o);
+            } else if (o instanceof TabularData) {
+                recurseTabularData(buffer, indent + " ", key, (TabularData)o);
+            } else {
+                buffer.append(indent);
+                buffer.append(key);
+                buffer.append(": ");
+                buffer.append(o);
+                buffer.append("\n");
+            }
+        }
+        return buffer;
+    }
+    
+    protected String addNameToBuffer(StringBuffer buffer, String indent,
+            String name) {
+        if (name == null || name.length() == 0) {
+            return indent;
+        }
+        buffer.append(indent);
+        buffer.append(name);
+        buffer.append(":\n");
+        // Move all that comes under this 'name' over by one space.
+        return indent + " ";
+    }
+
+    protected Object doBeanOperation(MBeanServerConnection mbsc,
+            ObjectInstance instance)
+    throws IntrospectionException, InstanceNotFoundException,
+            MBeanException, ReflectionException, IOException,
+            NoSuchMethodException, InstantiationException,
+            IllegalAccessException, InvocationTargetException,
+            ClassNotFoundException {
+        // Operations may take arguments. Expected format is
+        // 'operationName=arg0,arg1,arg2...' We are assuming no spaces nor
+        // comma's in argument values.
+        Matcher m = this.commandArgsPattern.matcher(this.command);
+        if (m == null || !m.matches()) {
+            return "Failed command parse";
+        }
+        
+        Object result = null;
+
+        // Split the command arguments on the comma.
+        Object [] objs = null;
+        String cmd = m.group(1);
+        String args = m.group(2);
+        if (args != null && args.length() > 0) {
+            objs = args.split(",");
+        }
+        
+        // Get first method of name 'cmd'. Assumption is no method
+        // overrides.  Then, look at the method and use its signature
+        // to make sure client sends over parameters of the correct type.
+        MBeanOperationInfo [] operations =
+            mbsc.getMBeanInfo(instance.getObjectName()).getOperations();
+        MBeanOperationInfo op = null;
+        for (int i = 0; i < operations.length; i++) {
+            if (operations[i].getName().equals(cmd)) {
+                op = operations[i];
+                break;
+            }
+        }
+        if (op == null) {
+            result = "Operation " + cmd + " not found.";
+        } else {
+            MBeanParameterInfo [] paraminfos = op.getSignature();
+            if (paraminfos.length != objs.length) {
+                result = "Passed param count does not match signature count";
+            } else {
+                String [] signature = new String[paraminfos.length];
+                Object [] params = (paraminfos.length == 0)? null
+                        : new Object[paraminfos.length];
+                for (int i = 0; i < paraminfos.length; i++) {
+                    MBeanParameterInfo paraminfo = paraminfos[i];
+                    java.lang.reflect.Constructor c = Class.forName(
+                            paraminfo.getType()).getConstructor(
+                            new Class[] {String.class});
+                    params[i] = c.newInstance(new Object[] {objs[i]});
+                }
+                result = mbsc.invoke(instance.getObjectName(), cmd, params,
+                        signature);
+            }
+        }
+        return result;
     }
 
     protected void listOptions(MBeanServerConnection mbsc,
@@ -318,8 +438,24 @@ public class Client {
         if (operations.length > 0) {
             System.out.println("Operations:");
             for (int i = 0; i < operations.length; i++) {
-                System.out.println(' ' + operations[i].getName() +
-                    ": " + operations[i].getDescription());
+                MBeanParameterInfo [] params = operations[i].getSignature();
+                StringBuffer paramsStrBuffer = new StringBuffer();
+                if (params != null) {
+                    for (int j = 0; j < params.length; j++) {
+                        paramsStrBuffer.append("\n   name=");
+                        paramsStrBuffer.append(params[j].getName());
+                        paramsStrBuffer.append(" type=");
+                        paramsStrBuffer.append(params[j].getType());
+                        paramsStrBuffer.append(" ");
+                        paramsStrBuffer.append(params[j].getDescription());
+                    }
+                }
+                System.out.println(' ' + operations[i].getName() +              
+                    ": " + operations[i].getDescription() +
+                    "\n  Parameters: " + params.length +
+                    paramsStrBuffer.toString() +
+                    "\n  Returns: " + operations[i].getReturnType()
+                    );
             }
         }
     }
