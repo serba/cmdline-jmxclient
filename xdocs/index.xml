@@ -10,7 +10,8 @@
 
   <body>
     <section name="Command-line control of Remote JMX Agent">
-    <p>A command-line JMX client. Requires SUN JDK1.5.0. 
+    <p>A command-line JMX client. Requires SUN JDK1.5.0 otherwise no
+    dependencies on other jars.
 To use, do the following to obtain usage: 
 <code>% java -jar cmdline-jmxclient.jar</code>. 
 Here is what usage currently looks like:
@@ -53,22 +54,23 @@ JMX Agent to set logging levels remotely and to get
 information on the running JVM.  It can also be used to remotely control
 <a href="http://crawler.archive.org">Heritrix</a> (Heritrix starts
 the SUN JVM JDK 1.5.0 JMX Agent when its run under SUN JDK 1.5.0 and then
-attaches a Management Bean for control and monitoring).  This command-client
+attaches Management Beans for control and monitoring).  This command-client
 can probably be gotten to talk to other JMX Agents but its only been tried
 against the JDK JMX Agent.</p>
 </section>
 
 <section name="Limitations">
 <ul>
-    <li>SUN JDK1.5.0 Only both for client and server.</li>
+    <li>SUN JDK1.5.0.</li>
 
-    <li>Not only does the designated remote server port need to be able
+    <li>Not only does the designated remote server port need to be accessible
 to the client -- i.e. no firewall blocking -- but, because the communication
 uses RMI and RMI works by returning to the client an arbitrarily chosen port
-for it to use in subsequent communications, unless somekind of tunnelling is
+for it to use in subsequent communications, unless some kind of tunnelling is
 setup, you'll need to have arbitrary port access to the server machine from
 the client (IA Peoples: Run from homeserver).</li>
-    <li>Doesn't (yet) undo involved OpenMBeans.</li>
+    <li>Doesn't (yet) return info on notifications and constrctors
+    available.</li>
     <li>Not yet tested over SSL.</li>
 
 </ul>
