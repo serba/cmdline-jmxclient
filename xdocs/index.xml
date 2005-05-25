@@ -11,8 +11,12 @@
   <body>
     <section name="Command-line control of Remote JMX Agent">
     <p>A command-line JMX client. Requires SUN JDK1.5.0 otherwise no
-    dependencies on other jars.
-To use, do the following to obtain usage: 
+    dependencies on other jars.  This code is licensed under the terms of the 
+            <a href="http://www.gnu.org/licenses/lgpl.txt">LGPL</a>.
+    </p>
+    </section>
+<section name="Usage">
+<p>To use, do the following to obtain usage: 
 <code>% java -jar cmdline-jmxclient.jar</code>. 
 Here is what usage currently looks like:
     <pre>Usage: java -jar cmdline-jmxclient.jar USER:PASS HOST:PORT [BEAN] [COMMAND]
@@ -57,6 +61,13 @@ the SUN JVM JDK 1.5.0 JMX Agent when its run under SUN JDK 1.5.0 and then
 attaches Management Beans for control and monitoring).  This command-client
 can probably be gotten to talk to other JMX Agents but its only been tried
 against the JDK JMX Agent.</p>
+</section>
+<section name="Downloads">
+    <p>Releases:
+    <ul>
+    <li><a href="cmdline-jmxclient-0.8.0.jar">cmdline-jmxclient-0.8.0.jar</a></li>
+    </ul>
+    </p>
 </section>
 
 <section name="Limitations">
