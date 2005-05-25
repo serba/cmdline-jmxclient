@@ -64,15 +64,14 @@ import javax.management.remote.JMXServiceURL;
 
 /**
  * A Simple Command-Line JMX Client.
- * Tested going against the JDK 1.5.0 JMX Agent.
+ * Tested against the JDK 1.5.0 JMX Agent.
  * See <a href="http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html">Monitoring
  * and Management Using JMX</a>.
+ * <p>Can supply credentials and do primitive string representation of tabular
+ * and composite openmbeans.
  * @author stack
  */
 public class Client {
-    /**
-     * Logging instance.
-     */
     private static final Logger logger =
         Logger.getLogger(Client.class.getName());
     
@@ -124,36 +123,16 @@ public class Client {
         "         setLoggingLevel=org.archive.crawler.Heritrix,FINE";
     
     /**
-     * Username + password with colon separator.
-     */
-    private String userpass = null;
-    
-    /**
-     * URL to use connecting to remote machine.
-     */
-    private String hostport = null;
-    
-    /**
-     * Target bean name or snippet of bean name.
-     */
-    private String beanName = null;
-    
-    /**
-     * Command or attribute to ask the other machine about.
-     */
-    private String command = null;
-    
-    /**
      * Pattern that matches a command name followed by
      * an optional equals and optional comma-delimited list
      * of arguments.
      */
-    Pattern commandArgsPattern =
+    private static final Pattern commandArgsPattern =
         Pattern.compile("^([^=]+)(?:(?:\\=)(.+))?$");
     
     
 	public static void main(String[] args) throws Exception {
-        Client client = new Client(args);
+        Client client = new Client();
         // Set the logger to use our all-on-one-line formatter.
         Logger l = Logger.getLogger("");
         Handler [] hs = l.getHandlers();
@@ -163,7 +142,7 @@ public class Client {
                 h.setFormatter(client.new OneLineSimpleLogger());
             }
         }
-        client.execute();
+        client.execute(args);
 	}
     
     protected static void usage() {
@@ -179,100 +158,92 @@ public class Client {
     }
 
     /**
-     * Shutdown access to the null constructor.
+     * Constructor.
      */
-    private Client() {
+    public Client() {
         super();
     }
     
     /**
-     * Constructor.
-     * @param args Command line args.
-     * @throws Exception
+     * @param userpass String of login and password separated by colon
+     * (e.g. controlRole:letmein).
+     * @return Format credentials as map for RMI.
      */
-    public Client(String [] args)
-    throws Exception {
-        // Process command-line.
-        if (args.length == 0 || args.length == 1) {
-            usage();
-        }
-        this.userpass = args[0];
-        this.hostport = args[1];
-        if (args.length > 2) {
-            this.beanName = args[2];
-        }
-        if (args.length > 3) {
-            this.command = args[3];
-        }
-    }
-    
-    /**
-     * @return Map of parsed credentials, if any.
-     */
-    protected Map getCredentials() {
+    protected Map formatCredentials(String userpass) {
         Map env = null;
-        if (this.userpass == null || this.userpass.equals("-")) {
+        if (userpass == null || userpass.equals("-")) {
             return env;
         }
-        int index = this.userpass.indexOf(':');
+        int index = userpass.indexOf(':');
         if (index <= 0) {
-            throw new RuntimeException("Unable to parse: " + this.userpass);
+            throw new RuntimeException("Unable to parse: " +userpass);
         }
-        String[] creds = new String[] { this.userpass.substring(0, index),
-                this.userpass.substring(index + 1) };
+        String[] creds = new String[] {userpass.substring(0, index),
+            userpass.substring(index + 1) };
         env = new HashMap(1);
         env.put(JMXConnector.CREDENTIALS, creds);
         return env;
     }
     
-    protected void execute()
+    protected void execute(String [] args)
     throws Exception {
+        // Process command-line.
+        if (args.length == 0 || args.length == 1) {
+            usage();
+        }
+        String userpass = args[0];
+        String hostport = args[1];
+        String beanName = null;
+        String command = null;
+        if (args.length > 2) {
+            beanName = args[2];
+        }
+        if (args.length > 3) {
+            command = args[3];
+        }
+        
         // Make up the jmx rmi URL and get a connector.
-        String hostname = this.hostport;
-        int index = this.hostport.indexOf(':');
+        String hostname = hostport;
+        int index = hostport.indexOf(':');
         if (index > 0) {
             hostname = hostname.substring(0, index);
         }
         JMXServiceURL rmiurl = new JMXServiceURL("service:jmx:rmi://" +
-            this.hostport + "/jndi/rmi://" + this.hostport + "/jmxrmi");
+            hostport + "/jndi/rmi://" + hostport + "/jmxrmi");
         JMXConnector jmxc =
-            JMXConnectorFactory.connect(rmiurl,getCredentials());
+            JMXConnectorFactory.connect(rmiurl,formatCredentials(userpass));
+        
+        // Query for instance of passed bean.
         try {
-            rpc(jmxc);
-        } finally {
-            jmxc.close();
-        }
-    }
-    
-    protected void rpc(JMXConnector jmxc)
-    throws Exception {
-        MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-        ObjectName objName =
-            (this.beanName == null || this.beanName.length() <= 0)?
-                null: new ObjectName(this.beanName);
-        Set beans = mbsc.queryMBeans(objName, null);
-        if (beans.size() == 0) {
-            // Complain if passed a nonexistent bean name.
-            logger.severe(objName.getCanonicalName() +
-                " is not a registered bean");
-        } else if (beans.size() == 1) {
-            // If only one instance of asked-for bean.
-            ObjectInstance instance =
-                (ObjectInstance)beans.iterator().next();
-            doBean(mbsc, instance);
-        } else {
-            // This shouldn't happen -- multiple instances of same
-            // bean.  For now report it.  Later figure how to handle it.
-            for (Iterator i = beans.iterator(); i.hasNext();) {
-                Object obj = i.next();
-                if (obj instanceof ObjectName) {
-                    System.out.println(((ObjectName)obj).getCanonicalName());
-                } else if (obj instanceof ObjectInstance) {
-                    System.out.println(((ObjectInstance)obj).getObjectName());
-                } else {
-                    System.out.println("Unexpected object type: " + obj);
+            MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+            ObjectName objName = (beanName == null || beanName.length() <= 0)?
+                null: new ObjectName(beanName);
+            Set beans = mbsc.queryMBeans(objName, null);
+            if (beans.size() == 0) {
+                // Complain if passed a nonexistent bean name.
+                logger.severe(objName.getCanonicalName() +
+                    " is not a registered bean");
+            } else if (beans.size() == 1) {
+                // If only one instance of asked-for bean.
+                ObjectInstance instance =
+                    (ObjectInstance)beans.iterator().next();
+                doBean(mbsc, instance, command);
+            } else {
+                // This is case of multiple beans. Print name of each.
+                for (Iterator i = beans.iterator(); i.hasNext();) {
+                    Object obj = i.next();
+                    if (obj instanceof ObjectName) {
+                        System.out.println(((ObjectName)obj).getCanonicalName());
+                    } else if (obj instanceof ObjectInstance) {
+                        System.out.println(((ObjectInstance)obj).getObjectName().
+                            getCanonicalName());
+                    } else {
+                        logger.severe("Unexpected object type: " + obj);
+                    }
                 }
             }
+        } finally {
+            jmxc.close();
         }
     }
     
@@ -282,21 +253,23 @@ public class Client {
      * @param mbsc Server connection.
      * @param instance Bean instance we're to get attributes from or
      * run operation against.
+     * @param command Command to run (May be null).
      * @throws Exception
      */
-    protected void doBean(MBeanServerConnection mbsc, ObjectInstance instance)
+    protected void doBean(MBeanServerConnection mbsc, ObjectInstance instance,
+        String command)
     throws Exception {
         // If no command, then print out list of attributes and operations.
-        if (this.command == null || this.command.length() <= 0) {
+        if (command == null || command.length() <= 0) {
             listOptions(mbsc, instance);
             return;
         }
         
         // Test if attribute or operation by seeing if first letter
         // is capitalized.
-        Object result = (Character.isUpperCase(this.command.charAt(0)))?
-            mbsc.getAttribute(instance.getObjectName(), this.command):
-            doBeanOperation(mbsc, instance);
+        Object result = (Character.isUpperCase(command.charAt(0)))?
+            mbsc.getAttribute(instance.getObjectName(),command):
+            doBeanOperation(mbsc, instance, command);
         
         // Look at the result.  Is it of composite or tabular type?
         // If so, convert to a String representation.
@@ -315,7 +288,7 @@ public class Client {
             }
             result = buffer;
         }
-        logger.info(this.command + ": " + result);
+        logger.info(command + ": " + result);
     }
     
     protected StringBuffer recurseTabularData(StringBuffer buffer,
@@ -373,7 +346,7 @@ public class Client {
     }
 
     protected Object doBeanOperation(MBeanServerConnection mbsc,
-            ObjectInstance instance)
+            ObjectInstance instance, String command)
     throws IntrospectionException, InstanceNotFoundException,
             MBeanException, ReflectionException, IOException,
             NoSuchMethodException, InstantiationException,
@@ -382,7 +355,7 @@ public class Client {
         // Operations may take arguments. Expected format is
         // 'operationName=arg0,arg1,arg2...' We are assuming no spaces nor
         // comma's in argument values.
-        Matcher m = this.commandArgsPattern.matcher(this.command);
+        Matcher m = Client.commandArgsPattern.matcher(command);
         if (m == null || !m.matches()) {
             return "Failed command parse";
         }
@@ -413,13 +386,15 @@ public class Client {
             result = "Operation " + cmd + " not found.";
         } else {
             MBeanParameterInfo [] paraminfos = op.getSignature();
-            if (paraminfos.length != objs.length) {
+            int paraminfosLength = (paraminfos == null)? 0: paraminfos.length;
+            int objsLength = (objs == null)? 0: objs.length;
+            if (paraminfosLength != objsLength) {
                 result = "Passed param count does not match signature count";
             } else {
-                String [] signature = new String[paraminfos.length];
-                Object [] params = (paraminfos.length == 0)? null
-                        : new Object[paraminfos.length];
-                for (int i = 0; i < paraminfos.length; i++) {
+                String [] signature = new String[paraminfosLength];
+                Object [] params = (paraminfosLength == 0)? null
+                        : new Object[paraminfosLength];
+                for (int i = 0; i < paraminfosLength; i++) {
                     MBeanParameterInfo paraminfo = paraminfos[i];
                     java.lang.reflect.Constructor c = Class.forName(
                             paraminfo.getType()).getConstructor(
@@ -466,10 +441,9 @@ public class Client {
                 }
                 System.out.println(' ' + operations[i].getName() +              
                     ": " + operations[i].getDescription() +
-                    "\n  Parameters: " + params.length +
-                    paramsStrBuffer.toString() +
-                    "\n  Returns: " + operations[i].getReturnType()
-                    );
+                    "\n  Parameters " + params.length +
+                    ", return type=" + operations[i].getReturnType() +
+                    paramsStrBuffer.toString());
             }
         }
     }
