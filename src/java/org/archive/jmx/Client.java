@@ -28,6 +28,7 @@ package org.archive.jmx;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.reflect.InvocationTargetException;
 import java.text.FieldPosition;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -43,7 +44,6 @@ import java.util.logging.SimpleFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
@@ -55,8 +55,6 @@ import javax.management.MBeanServerConnection;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
-import java.lang.reflect.InvocationTargetException;
-
 import javax.management.openmbean.CompositeData;
 import javax.management.openmbean.TabularData;
 import javax.management.remote.JMXConnector;
@@ -66,7 +64,7 @@ import javax.management.remote.JMXServiceURL;
 
 /**
  * A Simple Command-Line JMX Client.
- * Connects to the JDK 1.5.0 JMX Agent.
+ * Tested going against the JDK 1.5.0 JMX Agent.
  * See <a href="http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html">Monitoring
  * and Management Using JMX</a>.
  * @author stack
@@ -181,18 +179,20 @@ public class Client {
     }
 
     /**
-     * Shutdown constructor.
+     * Shutdown access to the null constructor.
      */
     private Client() {
         super();
     }
     
     /**
+     * Constructor.
      * @param args Command line args.
      * @throws Exception
      */
     public Client(String [] args)
     throws Exception {
+        // Process command-line.
         if (args.length == 0 || args.length == 1) {
             usage();
         }
@@ -206,92 +206,104 @@ public class Client {
         }
     }
     
+    /**
+     * @return Map of parsed credentials, if any.
+     */
     protected Map getCredentials() {
         Map env = null;
-        if (this.userpass != null && !this.userpass.equals("-")) {
-            int index = this.userpass.indexOf(':');
-            if (index <= 0) {
-                throw new RuntimeException("Unable to parse: " +
-                    this.userpass);
-            }
-            String [] creds = new String [] {
-                this.userpass.substring(0, index),
-                this.userpass.substring(index + 1)};
-            env = new HashMap(1);
-            env.put(JMXConnector.CREDENTIALS, creds);
+        if (this.userpass == null || this.userpass.equals("-")) {
+            return env;
         }
+        int index = this.userpass.indexOf(':');
+        if (index <= 0) {
+            throw new RuntimeException("Unable to parse: " + this.userpass);
+        }
+        String[] creds = new String[] { this.userpass.substring(0, index),
+                this.userpass.substring(index + 1) };
+        env = new HashMap(1);
+        env.put(JMXConnector.CREDENTIALS, creds);
         return env;
     }
     
     protected void execute()
     throws Exception {
+        // Make up the jmx rmi URL and get a connector.
         String hostname = this.hostport;
         int index = this.hostport.indexOf(':');
         if (index > 0) {
             hostname = hostname.substring(0, index);
         }
-        
-        JMXServiceURL rmiurl = 
-            new JMXServiceURL("service:jmx:rmi://" + this.hostport +
-                "/jndi/rmi://" + this.hostport + "/jmxrmi"); 
+        JMXServiceURL rmiurl = new JMXServiceURL("service:jmx:rmi://" +
+            this.hostport + "/jndi/rmi://" + this.hostport + "/jmxrmi");
         JMXConnector jmxc =
-            JMXConnectorFactory.connect(rmiurl, getCredentials());
-        
+            JMXConnectorFactory.connect(rmiurl,getCredentials());
         try {
-            MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-            ObjectName objName =
-                (this.beanName == null || this.beanName.length() <= 0)?
-                    null: new ObjectName(this.beanName);
-            Set beans = mbsc.queryMBeans(objName, null);
-            if (beans.size() == 0) {
-                logger.severe(objName.getCanonicalName() +
-                    " is not a registered bean");
-            } else if (beans.size() == 1) {
-                ObjectInstance instance =
-                    (ObjectInstance)beans.iterator().next();
-                doBean(mbsc, instance);
-            } else {
-                for (Iterator i = beans.iterator(); i.hasNext();) {
-                    Object obj = i.next();
-                    if (obj instanceof ObjectName) {
-                        System.out.println(((ObjectName)obj).
-                            getCanonicalName());
-                    } else if (obj instanceof ObjectInstance) {
-                        System.out.println(((ObjectInstance)obj).
-                            getObjectName());
-                    }
-                }
-            }
+            rpc(jmxc);
         } finally {
             jmxc.close();
         }
     }
     
-    protected void doBean(MBeanServerConnection mbsc,
-            ObjectInstance instance)
-    throws IntrospectionException, AttributeNotFoundException,
-            InstanceNotFoundException, MBeanException,
-            ReflectionException, IOException, NoSuchMethodException,
-            InstantiationException, IllegalAccessException,
-            InvocationTargetException, ClassNotFoundException {
-        
+    protected void rpc(JMXConnector jmxc)
+    throws Exception {
+        MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
+        ObjectName objName =
+            (this.beanName == null || this.beanName.length() <= 0)?
+                null: new ObjectName(this.beanName);
+        Set beans = mbsc.queryMBeans(objName, null);
+        if (beans.size() == 0) {
+            // Complain if passed a nonexistent bean name.
+            logger.severe(objName.getCanonicalName() +
+                " is not a registered bean");
+        } else if (beans.size() == 1) {
+            // If only one instance of asked-for bean.
+            ObjectInstance instance =
+                (ObjectInstance)beans.iterator().next();
+            doBean(mbsc, instance);
+        } else {
+            // This shouldn't happen -- multiple instances of same
+            // bean.  For now report it.  Later figure how to handle it.
+            for (Iterator i = beans.iterator(); i.hasNext();) {
+                Object obj = i.next();
+                if (obj instanceof ObjectName) {
+                    System.out.println(((ObjectName)obj).getCanonicalName());
+                } else if (obj instanceof ObjectInstance) {
+                    System.out.println(((ObjectInstance)obj).getObjectName());
+                } else {
+                    System.out.println("Unexpected object type: " + obj);
+                }
+            }
+        }
+    }
+    
+    /**
+     * Get attribute or run operation against passed bean
+     * <code>instance</code>.
+     * @param mbsc Server connection.
+     * @param instance Bean instance we're to get attributes from or
+     * run operation against.
+     * @throws Exception
+     */
+    protected void doBean(MBeanServerConnection mbsc, ObjectInstance instance)
+    throws Exception {
         // If no command, then print out list of attributes and operations.
         if (this.command == null || this.command.length() <= 0) {
             listOptions(mbsc, instance);
             return;
         }
         
-        // Test if attribute or operation.
-        Object result = (Character.isUpperCase(command.charAt(0)))?
+        // Test if attribute or operation by seeing if first letter
+        // is capitalized.
+        Object result = (Character.isUpperCase(this.command.charAt(0)))?
             mbsc.getAttribute(instance.getObjectName(), this.command):
             doBeanOperation(mbsc, instance);
         
+        // Look at the result.  Is it of composite or tabular type?
+        // If so, convert to a String representation.
         if (result instanceof CompositeData) {
-            // Convert the composite to a printable string.
             result = recurseCompositeData(new StringBuffer("\n"), "", "",
-                 (CompositeData)result);
+                (CompositeData)result);
         } else if (result instanceof TabularData) {
-            // Convert the tabular type to a printable string.
             result = recurseTabularData(new StringBuffer("\n"), "", "",
                  (TabularData)result);
         } else if (result instanceof String []) {
@@ -316,7 +328,7 @@ public class Client {
                 recurseCompositeData(buffer, indent + " ", "",
                     (CompositeData)obj);
             } else if (obj instanceof TabularData) {
-                recurseTabularData(buffer, indent + " ", "",
+                recurseTabularData(buffer, indent, "",
                     (TabularData)obj);
             } else {
                 buffer.append(obj);
@@ -336,7 +348,7 @@ public class Client {
                 recurseCompositeData(buffer, indent + " ", key,
                     (CompositeData)o);
             } else if (o instanceof TabularData) {
-                recurseTabularData(buffer, indent + " ", key, (TabularData)o);
+                recurseTabularData(buffer, indent, key, (TabularData)o);
             } else {
                 buffer.append(indent);
                 buffer.append(key);
@@ -431,7 +443,9 @@ public class Client {
             System.out.println("Attributes:");
             for (int i = 0; i < attributes.length; i++) {
                 System.out.println(' ' + attributes[i].getName() +
-                    ": " + attributes[i].getDescription());
+                    ": " + attributes[i].getDescription() +
+                    " (type=" + attributes[i].getType() +
+                    ")");
             }
         }
         MBeanOperationInfo [] operations = info.getOperations();
@@ -502,29 +516,29 @@ public class Client {
             this.buffer.setLength(0);
             this.date.setTime(record.getMillis());
             this.position.setBeginIndex(0);
-            this.formatter.format(this.date, buffer, this.position);
-            buffer.append(' ');
+            this.formatter.format(this.date, this.buffer, this.position);
+            this.buffer.append(' ');
             if (record.getSourceClassName() != null) {
-                buffer.append(record.getSourceClassName());
+                this.buffer.append(record.getSourceClassName());
             } else {
-                buffer.append(record.getLoggerName());
+                this.buffer.append(record.getLoggerName());
             }
-            buffer.append(' ');
-            buffer.append(formatMessage(record));
-            buffer.append(System.getProperty("line.separator"));
+            this.buffer.append(' ');
+            this.buffer.append(formatMessage(record));
+            this.buffer.append(System.getProperty("line.separator"));
             if (record.getThrown() != null) {
                 try {
                     StringWriter writer = new StringWriter();
                     PrintWriter printer = new PrintWriter(writer);
                     record.getThrown().printStackTrace(printer);
                     writer.close();
-                    buffer.append(writer.toString());
+                    this.buffer.append(writer.toString());
                 } catch (Exception e) {
-                    buffer.append("Failed to get stack trace: " +
+                    this.buffer.append("Failed to get stack trace: " +
                         e.getMessage());
                 }
             }
-            return buffer.toString();
+            return this.buffer.toString();
         }
     }
 }
