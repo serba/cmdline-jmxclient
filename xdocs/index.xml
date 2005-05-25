@@ -69,6 +69,15 @@ against the JDK JMX Agent.</p>
     </ul>
     </p>
 </section>
+<section name="Other JMX Cmdline Clients">
+<p>
+<ul>
+<li>See on this page, <a href="http://admc.com/dist/admcjmx-adaptors.jar">JMX HOWTO</a>. Depends on MX4J. Puts up a basic shell for interaction with MBeans. 
+</li>
+<li><i>twiddle</i>, bundled with JBOSS.  Depends on JBOSS</li> 
+</ul>
+</p>
+</section>
 
 <section name="Limitations">
 <ul>
