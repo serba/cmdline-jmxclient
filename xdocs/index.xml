@@ -65,6 +65,7 @@ against the JDK JMX Agent.</p>
 <section name="Downloads">
     <p>Releases:
     <ul>
+    <li><a href="cmdline-jmxclient-0.10.0.jar">cmdline-jmxclient-0.10.0.jar</a></li>
     <li><a href="cmdline-jmxclient-0.8.0.jar">cmdline-jmxclient-0.8.0.jar</a></li>
     </ul>
     </p>
