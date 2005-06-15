@@ -11,7 +11,7 @@
 
   <!-- The version of the project under development, e.g.
        1.1, 1.2, 2.0-SNAPSHOT -->
-  <currentVersion>0.10.0${version.build.suffix}</currentVersion>
+  <currentVersion>0.11.0${version.build.suffix}</currentVersion>
 
   <!-- details about the organization that 'owns' the project -->
   <organization>
