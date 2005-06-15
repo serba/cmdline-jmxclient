@@ -44,6 +44,7 @@ import java.util.logging.SimpleFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
@@ -96,7 +97,11 @@ public class Client {
         " begin with a\n" +
         "           capital letter: e.g. 'Status' or 'Started'." +
         " Operations do not.\n" +
-        "           Operations can take arguments.\n" +
+        "           Operations can take arguments by adding an '=' " +
+        "followed by\n" +
+        "           comma-delimited params. Pass multiple " +
+        "attributes/operations to run\n" +
+        "           more than one per invocation.\n" +
         "Requirements:\n" +
         " JDK1.5.0. If connecting to a SUN 1.5.0 JDK JMX Agent, remote side" +
         " must be\n" +
@@ -129,7 +134,6 @@ public class Client {
      */
     private static final Pattern commandArgsPattern =
         Pattern.compile("^([^=]+)(?:(?:\\=)(.+))?$");
-    
     
 	public static void main(String[] args) throws Exception {
         Client client = new Client();
@@ -194,12 +198,15 @@ public class Client {
         String userpass = args[0];
         String hostport = args[1];
         String beanName = null;
-        String command = null;
+        String [] command = null;
         if (args.length > 2) {
             beanName = args[2];
         }
         if (args.length > 3) {
-            command = args[3];
+            command = new String [args.length - 3];
+            for (int i = 3; i < args.length; i++) {
+                command[i - 3] = args[i];
+            }
         }
         
         // Make up the jmx rmi URL and get a connector.
@@ -257,19 +264,32 @@ public class Client {
      * @throws Exception
      */
     protected void doBean(MBeanServerConnection mbsc, ObjectInstance instance,
-        String command)
+        String [] command)
     throws Exception {
         // If no command, then print out list of attributes and operations.
-        if (command == null || command.length() <= 0) {
+        if (command == null || command.length <= 0) {
             listOptions(mbsc, instance);
             return;
         }
         
-        // Test if attribute or operation by seeing if first letter
-        // is capitalized.
-        Object result = (Character.isUpperCase(command.charAt(0)))?
-            mbsc.getAttribute(instance.getObjectName(),command):
-            doBeanOperation(mbsc, instance, command);
+        // Maybe multiple attributes/operations listed on one command line.
+        for (int i = 0; i < command.length; i++) {
+            doSubCommand(mbsc, instance, command[i]);
+        }
+    }
+    
+    protected void doSubCommand(MBeanServerConnection mbsc,
+            ObjectInstance instance, String subCommand)
+    throws AttributeNotFoundException, InstanceNotFoundException,
+        IntrospectionException, MBeanException, ReflectionException,
+        IOException, NoSuchMethodException, InstantiationException,
+        IllegalAccessException, InvocationTargetException,
+        ClassNotFoundException {
+        
+        // Test if attribute or operation.
+        Object result = (Character.isUpperCase(subCommand.charAt(0)))?
+            mbsc.getAttribute(instance.getObjectName(), subCommand):
+            doBeanOperation(mbsc, instance, subCommand);
         
         // Look at the result.  Is it of composite or tabular type?
         // If so, convert to a String representation.
@@ -288,7 +308,7 @@ public class Client {
             }
             result = buffer;
         }
-        logger.info(command + ": " + result);
+        logger.info(subCommand + ": " + result);
     }
     
     protected StringBuffer recurseTabularData(StringBuffer buffer,
@@ -363,7 +383,7 @@ public class Client {
         Object result = null;
 
         // Split the command arguments on the comma.
-        Object [] objs = null;
+        Object [] objs = new Object [0];
         String cmd = m.group(1);
         String args = m.group(2);
         if (args != null && args.length() > 0) {
