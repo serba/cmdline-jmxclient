@@ -40,6 +40,7 @@ import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
+import java.util.logging.Level;
 import java.util.logging.SimpleFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -308,7 +309,10 @@ public class Client {
             }
             result = buffer;
         }
-        logger.info(subCommand + ": " + result);
+        // Only log if a result.
+        if (result != null && logger.isLoggable(Level.INFO)) {
+            logger.info(subCommand + ": " + result);
+        }
     }
     
     protected StringBuffer recurseTabularData(StringBuffer buffer,
