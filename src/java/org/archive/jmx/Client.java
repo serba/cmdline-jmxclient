@@ -122,11 +122,11 @@ public class Client {
         "     % java -jar cmdline-jmxclient-X.X.jar - localhost:8081 \\\n" +
         "         org.archive.crawler:name=Heritrix,type=Service \\\n" +
         "         schedule=http://www.archive.org\n" +
-        " To set logging level to FINE on a password protected JVM:\n" +
+        " To set set logging level to FINE on a password protected JVM:\n" +
         "     % java -jar cmdline-jmxclient-X.X.jar controlRole:secret" +
         " localhost:8081 \\\n" +
         "         java.util.logging:type=Logging \\\n" +
-        "         setLoggingLevel=org.archive.crawler.Heritrix,FINE";
+        "         setLoggerLevel=org.archive.crawler.Heritrix,FINE";
     
     /**
      * Pattern that matches a command name followed by
@@ -424,6 +424,7 @@ public class Client {
                             paraminfo.getType()).getConstructor(
                             new Class[] {String.class});
                     params[i] = c.newInstance(new Object[] {objs[i]});
+                    signature[i] = paraminfo.getType();
                 }
                 result = mbsc.invoke(instance.getObjectName(), cmd, params,
                         signature);
