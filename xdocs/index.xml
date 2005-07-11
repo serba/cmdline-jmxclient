@@ -67,6 +67,7 @@ against the JDK JMX Agent.</p>
 <section name="Downloads">
     <p>Releases:
     <ul>
+    <li><a href="cmdline-jmxclient-0.10.3.jar">cmdline-jmxclient-0.10.3.jar</a>: Added setting of attributes and graceful handling of attribute/operation names that do not adhere to first-letter capitalization convention.</li>
     <li><a href="cmdline-jmxclient-0.10.2.jar">cmdline-jmxclient-0.10.2.jar</a></li>
     </ul>
     </p>

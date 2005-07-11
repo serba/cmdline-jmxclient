@@ -30,6 +30,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.text.FieldPosition;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
@@ -45,11 +46,13 @@ import java.util.logging.SimpleFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import javax.management.Attribute;
 import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
 import javax.management.MBeanException;
+import javax.management.MBeanFeatureInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanOperationInfo;
 import javax.management.MBeanParameterInfo;
@@ -62,6 +65,7 @@ import javax.management.openmbean.TabularData;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+import javax.security.auth.login.FailedLoginException;
 
 
 /**
@@ -133,7 +137,7 @@ public class Client {
      * an optional equals and optional comma-delimited list
      * of arguments.
      */
-    private static final Pattern commandArgsPattern =
+    protected static final Pattern CMD_LINE_ARGS_PATTERN =
         Pattern.compile("^([^=]+)(?:(?:\\=)(.+))?$");
     
 	public static void main(String[] args) throws Exception {
@@ -281,16 +285,48 @@ public class Client {
     
     protected void doSubCommand(MBeanServerConnection mbsc,
             ObjectInstance instance, String subCommand)
-    throws AttributeNotFoundException, InstanceNotFoundException,
-        IntrospectionException, MBeanException, ReflectionException,
-        IOException, NoSuchMethodException, InstantiationException,
-        IllegalAccessException, InvocationTargetException,
-        ClassNotFoundException {
+    throws Exception {
         
-        // Test if attribute or operation.
-        Object result = (Character.isUpperCase(subCommand.charAt(0)))?
-            mbsc.getAttribute(instance.getObjectName(), subCommand):
-            doBeanOperation(mbsc, instance, subCommand);
+        // Get attribute and operation info.
+        MBeanAttributeInfo [] attributeInfo =
+            mbsc.getMBeanInfo(instance.getObjectName()).getAttributes();
+        MBeanOperationInfo [] operationInfo =
+            mbsc.getMBeanInfo(instance.getObjectName()).getOperations();
+        // Now, bdbje JMX bean doesn't follow the convention of attributes
+        // having uppercase first letter and operations having lowercase
+        // first letter.  But most beans do. Be prepared to handle the bdbje
+        // case.
+        Object result = null;
+        if (Character.isUpperCase(subCommand.charAt(0))) {
+            // Probably an attribute.
+            if (!isFeatureInfo(attributeInfo, subCommand) &&
+                    isFeatureInfo(operationInfo, subCommand)) {
+                // Its not an attribute name. Looks like its name of an
+                // operation.  Try it.
+                result =
+                    doBeanOperation(mbsc, instance, subCommand, operationInfo);
+            } else {
+                // Then it is an attribute OR its not an attribute name nor
+                // operation name and the below invocation will throw a
+                // AttributeNotFoundException.
+                result = doAttributeOperation(mbsc, instance, subCommand,
+                    attributeInfo);
+            }
+        } else {
+            // Must be an operation.
+            if (!isFeatureInfo(operationInfo, subCommand) &&
+                    isFeatureInfo(attributeInfo, subCommand)) {
+                // Its not an operation name but looks like it could be an
+                // attribute name. Try it.
+                result = doAttributeOperation(mbsc, instance, subCommand,
+                    attributeInfo);        
+            } else {
+                // Its an operation name OR its neither operation nor attribute
+                // name and the below will throw a NoSuchMethodException.
+                result =
+                    doBeanOperation(mbsc, instance, subCommand, operationInfo);
+            }
+        }
         
         // Look at the result.  Is it of composite or tabular type?
         // If so, convert to a String representation.
@@ -313,6 +349,23 @@ public class Client {
         if (result != null && logger.isLoggable(Level.INFO)) {
             logger.info(subCommand + ": " + result);
         }
+    }
+    
+    protected boolean isFeatureInfo(MBeanFeatureInfo [] infos, String cmd) {
+        return getFeatureInfo(infos, cmd) != null;
+    }
+    
+    protected MBeanFeatureInfo getFeatureInfo(MBeanFeatureInfo [] infos,
+            String cmd) {
+        // Cmd may be carrying arguments.  Don't count them in the compare.
+        int index = cmd.indexOf('=');
+        String name = (index > 0)? cmd.substring(0, index): cmd;
+        for (int i = 0; i < infos.length; i++) {
+            if (infos[i].getName().equals(name)) {
+                return infos[i];
+            }
+        }
+        return null;
     }
     
     protected StringBuffer recurseTabularData(StringBuffer buffer,
@@ -368,50 +421,87 @@ public class Client {
         // Move all that comes under this 'name' over by one space.
         return indent + " ";
     }
-
-    protected Object doBeanOperation(MBeanServerConnection mbsc,
-            ObjectInstance instance, String command)
-    throws IntrospectionException, InstanceNotFoundException,
-            MBeanException, ReflectionException, IOException,
-            NoSuchMethodException, InstantiationException,
-            IllegalAccessException, InvocationTargetException,
-            ClassNotFoundException {
-        // Operations may take arguments. Expected format is
-        // 'operationName=arg0,arg1,arg2...' We are assuming no spaces nor
-        // comma's in argument values.
-        Matcher m = Client.commandArgsPattern.matcher(command);
-        if (m == null || !m.matches()) {
-            return "Failed command parse";
+    
+    /**
+     * Class that parses commandline arguments.
+     * Expected format is 'operationName=arg0,arg1,arg2...'. We are assuming no
+     * spaces nor comma's in argument values.
+     */
+    protected class CommandParse {
+        private String cmd;
+        private String [] args;
+        
+        protected CommandParse(String command) throws ParseException {
+            parse(command);
         }
         
-        Object result = null;
+        private void parse(String command) throws ParseException {
+            Matcher m = CMD_LINE_ARGS_PATTERN.matcher(command);
+            if (m == null || !m.matches()) {
+                throw new ParseException("Failed parse of " + command, 0);
+            }
 
-        // Split the command arguments on the comma.
-        Object [] objs = new Object [0];
-        String cmd = m.group(1);
-        String args = m.group(2);
-        if (args != null && args.length() > 0) {
-            objs = args.split(",");
+            this.cmd = m.group(1);
+            if (m.group(2) != null && m.group(2).length() > 0) {
+                this.args = m.group(2).split(",");
+            } else {
+                this.args = null;
+            }
         }
+        
+        protected String getCmd() {
+            return this.cmd;
+        }
+        
+        protected String [] getArgs() {
+            return this.args;
+        }
+    }
+    
+    protected Object doAttributeOperation(MBeanServerConnection mbsc,
+        ObjectInstance instance, String command, MBeanAttributeInfo [] infos)
+    throws Exception {
+        // Usually we get attributes. If an argument, then we're being asked
+        // to set attribute.
+        CommandParse parse = new CommandParse(command);
+        if (parse.getArgs() == null || parse.getArgs().length == 0) {
+            return mbsc.getAttribute(instance.getObjectName(), parse.getCmd());
+        }
+        if (parse.getArgs().length != 1) {
+            throw new IllegalArgumentException("One only argument setting " +
+                "attribute values: " + parse.getArgs());
+        }
+        // Get first attribute of name 'cmd'. Assumption is no method
+        // overrides.  Then, look at the attribute and use its type.
+        MBeanAttributeInfo info =
+            (MBeanAttributeInfo)getFeatureInfo(infos, parse.getCmd());
+        java.lang.reflect.Constructor c = Class.forName(
+             info.getType()).getConstructor(new Class[] {String.class});
+        Attribute a = new Attribute(parse.getCmd(),
+            c.newInstance(new Object[] {parse.getArgs()[0]}));
+        mbsc.setAttribute(instance.getObjectName(), a);
+        return null;
+    }
+
+    protected Object doBeanOperation(MBeanServerConnection mbsc,
+        ObjectInstance instance, String command, MBeanOperationInfo [] infos)
+    throws Exception {
+        // Parse command line.
+        CommandParse parse = new CommandParse(command);
         
         // Get first method of name 'cmd'. Assumption is no method
         // overrides.  Then, look at the method and use its signature
         // to make sure client sends over parameters of the correct type.
-        MBeanOperationInfo [] operations =
-            mbsc.getMBeanInfo(instance.getObjectName()).getOperations();
-        MBeanOperationInfo op = null;
-        for (int i = 0; i < operations.length; i++) {
-            if (operations[i].getName().equals(cmd)) {
-                op = operations[i];
-                break;
-            }
-        }
+        MBeanOperationInfo op =
+            (MBeanOperationInfo)getFeatureInfo(infos, parse.getCmd());
+        Object result = null;
         if (op == null) {
-            result = "Operation " + cmd + " not found.";
+            result = "Operation " + parse.getCmd() + " not found.";
         } else {
             MBeanParameterInfo [] paraminfos = op.getSignature();
             int paraminfosLength = (paraminfos == null)? 0: paraminfos.length;
-            int objsLength = (objs == null)? 0: objs.length;
+            int objsLength = (parse.getArgs() == null)?
+                0: parse.getArgs().length;
             if (paraminfosLength != objsLength) {
                 result = "Passed param count does not match signature count";
             } else {
@@ -421,13 +511,14 @@ public class Client {
                 for (int i = 0; i < paraminfosLength; i++) {
                     MBeanParameterInfo paraminfo = paraminfos[i];
                     java.lang.reflect.Constructor c = Class.forName(
-                            paraminfo.getType()).getConstructor(
+                        paraminfo.getType()).getConstructor(
                             new Class[] {String.class});
-                    params[i] = c.newInstance(new Object[] {objs[i]});
+                    params[i] =
+                        c.newInstance(new Object[] {parse.getArgs()[i]});
                     signature[i] = paraminfo.getType();
                 }
-                result = mbsc.invoke(instance.getObjectName(), cmd, params,
-                        signature);
+                result = mbsc.invoke(instance.getObjectName(), parse.getCmd(),
+                    params, signature);
             }
         }
         return result;
