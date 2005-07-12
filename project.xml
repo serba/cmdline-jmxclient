@@ -108,12 +108,6 @@
     </unitTest>
     <resources>
     <resource>
-        <directory>${basedir}/src/resources</directory>
-        <includes>
-            <include>*.xsl</include>
-        </includes>
-    </resource>
-    <resource>
         <directory>${basedir}/src/conf/</directory>
     </resource>
     </resources>
