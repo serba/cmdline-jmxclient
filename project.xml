@@ -102,9 +102,6 @@
     <sourceDirectory>src/java</sourceDirectory>
     <unitTestSourceDirectory>src/java</unitTestSourceDirectory>
     <unitTest>
-      <excludes>
-        <exclude>**/*SelfTest.java</exclude>
-      </excludes>
       <includes>
         <include>**/*Test.java</include>
       </includes>
@@ -118,12 +115,6 @@
     </resource>
     <resource>
         <directory>${basedir}/src/conf/</directory>
-        <includes>
-            <include>heritrix.properties</include>
-            <include>profiles/**</include>
-            <include>modules/**</include>
-            <include>selftest/**</include>
-        </includes>
     </resource>
     </resources>
   </build>
