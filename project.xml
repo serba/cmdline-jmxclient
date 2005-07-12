@@ -7,7 +7,7 @@
   <id>cmdline-jmxclient</id>
 
   <!-- a short but descriptive name for the project -->
-  <name>Command-line Client for Remote JMX Agent</name>
+  <name>Command-line JMX Client</name>
 
   <!-- The version of the project under development, e.g.
        1.1, 1.2, 2.0-SNAPSHOT -->
@@ -25,13 +25,6 @@
   <package>org.archive.jmx</package>
   <logo>http://www.archive.org/images/logo.gif</logo>
   <description>Command-line JMX Client.
-  Used to go against the SUN JVM 1.5.0 JMX Agent.
-  See &lt;a href="http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html"&gt;Monitoring and Management Using JMX&lt;/a&gt;.
-  Requires JDK1.5.0 on both client and remote server-side.  The remote server
-  must be started with something like the following system properties: 
-  &lt;code&gt;%-Dcom.sun.management.jmxremote.remote=PORT
-  -Dcom.sun.management.jmxremote.authenticate=false
-  -Dcom.sun.management.jmxremote.ssl=false&lt;/code&gt;.
   </description>
   <!-- a short description of what the project does -->
   <shortDescription>Command-line JMX Client</shortDescription>

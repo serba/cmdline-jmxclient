@@ -9,14 +9,13 @@
 
 
   <body>
-    <section name="Command-line control of Remote JMX Agent">
-    <p>A command-line JMX client.
+    <section name="Command-line JMX Client">
+    <p>A command-line JMX client. Does RMI to remote JMX Agent.
     </p>
     </section>
 <section name="Usage">
 <p>To use, do the following to obtain usage: 
-<code>% java -jar cmdline-jmxclient.jar</code>. 
-Here is what usage currently looks like:
+<code>% java -jar cmdline-jmxclient.jar</code>:
     <pre>Usage: java -jar cmdline-jmxclient.jar USER:PASS HOST:PORT [BEAN] [COMMAND]
 Options:
  USER:PASS Username and password. Required. If none, pass '-'.
@@ -62,6 +61,15 @@ attaches Management Beans for control and monitoring).  This command-client
 can probably be gotten to talk to other JMX Agents but its only been tried
 against the JDK JMX Agent.</p>
 </section>
+<section name="Links" >
+    <ul>
+    <li>Use this client to access the JVM JMX Agent to set logging levels,
+    watch memory, etc.:
+    <a 
+  href="http://java.sun.com/j2se/1.5.0/docs/guide/management/agent.html">Monitoring and Management Using JMX</a>
+  </li>
+    </ul>
+</section>
 <section name="Other JMX Cmdline Clients">
 <p>
 <ul>
@@ -74,15 +82,13 @@ against the JDK JMX Agent.</p>
 
 <section name="Limitations">
 <ul>
-    <li>SUN JDK1.5.0.</li>
-
     <li>Not only does the designated remote server port need to be accessible
 to the client -- i.e. no firewall blocking -- but, because the communication
 uses RMI and RMI works by returning to the client an arbitrarily chosen port
 for it to use in subsequent communications, unless some kind of tunnelling is
 setup, you'll need to have arbitrary port access to the server machine from
 the client (IA Peoples: Run from homeserver).</li>
-    <li>Doesn't (yet) return info on notifications and constrctors
+    <li>Doesn't (yet) return info on notifications and constructors
     available.</li>
     <li>Not yet tested over SSL.</li>
 
