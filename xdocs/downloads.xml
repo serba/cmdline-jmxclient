@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="ISO-8859-1"?>
+<document>
+  <properties>
+    <title>Downloads</title>
+    <author email="stack at archive dot org">St.Ack</author>
+    <revision>$Id: downloads.xml,v 1.5 2004/10/27 23:49:35 stack-sf Exp $</revision>
+  </properties>
+
+  <body>
+  <section name="Downloads">
+    <subsection name="Releases">
+        <p> <a 
+        href="cmdline-jmxclient-0.10.3.jar">cmdline-jmxclient-0.10.3.jar</a>
+        Added setting of attributes and graceful handling of attribute/operation names that do not adhere to first-letter capitalization convention 
+        </p>
+	</subsection>
+   
+    <subsection name="Continuous build">
+		<p>Here is a
+        <a href="http://crawltools.archive.org:8080/cruisecontrol/buildResults/HEAD-cmdline-jmxclient">pointer</a> to our continuous build box.
+        The latest build can be found by clicking on the 'Build Artifacts' 
+        link.  Be aware that this distribution has been made from 
+        CVS HEAD and CVS HEAD builds are not guaranteed stable.
+        </p>
+	</subsection>
+    
+  </section>
+
+  </body>
+</document>

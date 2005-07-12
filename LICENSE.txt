@@ -1,12 +1,5 @@
-Heritrix is free software; you can redistribute it and/or modify it under
-the terms of the GNU Lesser Public license (LGPL) reproduced below.  
-
-Heritrix includes libraries it depends upon.  These can be found under the 
-'lib' directory.  Each of these libraries has its own licensing terms.
-The libraries used and their licenses are listed here
-http://crawler.archive.org/dependencies.html or see the accompanying project.xml
-dependencies section.
-
+cmdline-jmxclient is free software; you can redistribute it and/or modify it
+under the terms of the GNU Lesser Public license (LGPL) reproduced below.  
 
 		  GNU LESSER GENERAL PUBLIC LICENSE
 		       Version 2.1, February 1999

@@ -10,9 +10,7 @@
 
   <body>
     <section name="Command-line control of Remote JMX Agent">
-    <p>A command-line JMX client. Requires SUN JDK1.5.0 otherwise no
-    dependencies on other jars.  This code is licensed under the terms of the 
-            <a href="http://www.gnu.org/licenses/lgpl.txt">LGPL</a>.
+    <p>A command-line JMX client.
     </p>
     </section>
 <section name="Usage">
@@ -63,14 +61,6 @@ the SUN JVM JDK 1.5.0 JMX Agent when its run under SUN JDK 1.5.0 and then
 attaches Management Beans for control and monitoring).  This command-client
 can probably be gotten to talk to other JMX Agents but its only been tried
 against the JDK JMX Agent.</p>
-</section>
-<section name="Downloads">
-    <p>Releases:
-    <ul>
-    <li><a href="cmdline-jmxclient-0.10.3.jar">cmdline-jmxclient-0.10.3.jar</a>: Added setting of attributes and graceful handling of attribute/operation names that do not adhere to first-letter capitalization convention.</li>
-    <li><a href="cmdline-jmxclient-0.10.2.jar">cmdline-jmxclient-0.10.2.jar</a></li>
-    </ul>
-    </p>
 </section>
 <section name="Other JMX Cmdline Clients">
 <p>

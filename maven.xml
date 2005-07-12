@@ -20,4 +20,8 @@
         </exec>
     </goal>
 
+    <preGoal name="xdoc:jelly-transform">
+        <attainGoal name="faq" />
+    </preGoal>
+
 </project>
