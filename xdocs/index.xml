@@ -10,7 +10,7 @@
 
   <body>
     <section name="Command-line JMX Client">
-    <p>A command-line JMX client. Does RMI to remote JMX Agent.
+    <p>A command-line JMX client. Does RMI to a remote JMX Agent.
     </p>
     </section>
 <section name="Usage">
