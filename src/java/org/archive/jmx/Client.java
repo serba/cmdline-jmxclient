@@ -57,6 +57,7 @@ import javax.management.MBeanInfo;
 import javax.management.MBeanOperationInfo;
 import javax.management.MBeanParameterInfo;
 import javax.management.MBeanServerConnection;
+import javax.management.MalformedObjectNameException;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
@@ -93,7 +94,7 @@ public class Client {
         " E.g. localhost:8081.\n" +
         "           Lists registered beans if only USER:PASS and this" +
         " argument.\n" +
-        " BEANNAME  Optional target bean name. If present we list" +
+        " BEAN      Optional target bean name. If present we list" +
         " available operations\n" +
         "           and attributes.\n" +
         " COMMAND   Optional operation to run or attribute to fetch. If" +
@@ -139,6 +140,11 @@ public class Client {
      */
     protected static final Pattern CMD_LINE_ARGS_PATTERN =
         Pattern.compile("^([^=]+)(?:(?:\\=)(.+))?$");
+    
+    /**
+     * Comamands for the client have this for a prefix.
+     */
+    private static final String THIS_PREFIX = "this.";
     
 	public static void main(String[] args) throws Exception {
         Client client = new Client();
@@ -224,48 +230,89 @@ public class Client {
             hostport + "/jndi/rmi://" + hostport + "/jmxrmi");
         JMXConnector jmxc =
             JMXConnectorFactory.connect(rmiurl,formatCredentials(userpass));
-        
-        // Query for instance of passed bean.
         try {
             MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-            ObjectName objName = (beanName == null || beanName.length() <= 0)?
-                null: new ObjectName(beanName);
-            Set beans = mbsc.queryMBeans(objName, null);
-            if (beans.size() == 0) {
-                // Complain if passed a nonexistent bean name.
-                logger.severe(objName.getCanonicalName() +
-                    " is not a registered bean");
-            } else if (beans.size() == 1) {
-                // If only one instance of asked-for bean.
-                ObjectInstance instance =
-                    (ObjectInstance)beans.iterator().next();
-                doBean(mbsc, instance, command);
-            } else {
-                // This is case of multiple beans. Print name of each.
-                for (Iterator i = beans.iterator(); i.hasNext();) {
-                    Object obj = i.next();
-                    if (obj instanceof ObjectName) {
-                        System.out.println(((ObjectName)obj).getCanonicalName());
-                    } else if (obj instanceof ObjectInstance) {
-                        System.out.println(((ObjectInstance)obj).getObjectName().
-                            getCanonicalName());
-                    } else {
-                        logger.severe("Unexpected object type: " + obj);
-                    }
+            if (notEmpty(beanName) && beanName.startsWith(THIS_PREFIX)) {
+                if (beanName.equals(THIS_PREFIX + "create")) {
+                    // We're to create mbean instances.
+                    createBean(mbsc, command);
+                } else if (beanName.equals(THIS_PREFIX + "destroy")) {
+                    destroyBean(mbsc, command);
+                } else {
+                    throw new UnsupportedOperationException(beanName);
                 }
+            } else {
+                doBeans(mbsc, beanName, command);
             }
         } finally {
             jmxc.close();
         }
     }
     
+    protected boolean notEmpty(String s) {
+        return s != null && s.length() > 0;
+    }
+    
+    protected void createBean(final MBeanServerConnection mbsc,
+            final String[] command)
+    throws Exception {
+        if (command.length != 2) {
+            throw new RuntimeException("Must pass class and object name " +
+                "only (Currently only default constructor supported)");
+        }
+        mbsc.createMBean(command[1], new ObjectName(command[0]));
+    }
+    
+    protected void destroyBean(final MBeanServerConnection mbsc,
+            final String[] command)
+    throws Exception {
+        if (command.length != 1) {
+            throw new RuntimeException("Must pass object name only.");
+        }
+        mbsc.unregisterMBean(new ObjectName(command[0]));
+    }
+    
+    protected void doBeans(final MBeanServerConnection mbsc,
+            final String beanName, final String[] command) throws Exception {
+        ObjectName objName = notEmpty(beanName) ?
+                new ObjectName(beanName):  null;
+        Set beans = mbsc.queryMBeans(objName, null);
+        if (beans.size() == 0) {
+            // Complain if passed a nonexistent bean name.
+            logger.severe(objName.getCanonicalName() + " not registered bean");
+            return;
+        }
+        
+        if (beans.size() == 1) {
+            // If only one instance of asked-for bean.
+            doBean(mbsc, (ObjectInstance)beans.iterator().next(), command);
+            return;
+        }
+        
+        // This is case of multiple beans. Print name of each.
+        for (Iterator i = beans.iterator(); i.hasNext();) {
+            Object obj = i.next();
+            if (obj instanceof ObjectName) {
+                System.out.println(((ObjectName) obj).getCanonicalName());
+            } else if (obj instanceof ObjectInstance) {
+                System.out.println(((ObjectInstance) obj).getObjectName()
+                        .getCanonicalName());
+            } else {
+                logger.severe("Unexpected object type: " + obj);
+            }
+        }
+    }
+    
     /**
-     * Get attribute or run operation against passed bean
-     * <code>instance</code>.
-     * @param mbsc Server connection.
-     * @param instance Bean instance we're to get attributes from or
-     * run operation against.
-     * @param command Command to run (May be null).
+     * Get attribute or run operation against passed bean <code>instance</code>.
+     * 
+     * @param mbsc
+     *            Server connection.
+     * @param instance
+     *            Bean instance we're to get attributes from or run operation
+     *            against.
+     * @param command
+     *            Command to run (May be null).
      * @throws Exception
      */
     protected void doBean(MBeanServerConnection mbsc, ObjectInstance instance,
