@@ -28,7 +28,6 @@ package org.archive.jmx;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.lang.reflect.InvocationTargetException;
 import java.text.FieldPosition;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -39,25 +38,22 @@ import java.util.Map;
 import java.util.Set;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
+import java.util.logging.Level;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
-import java.util.logging.Level;
 import java.util.logging.SimpleFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.management.Attribute;
-import javax.management.AttributeNotFoundException;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
-import javax.management.MBeanException;
 import javax.management.MBeanFeatureInfo;
 import javax.management.MBeanInfo;
 import javax.management.MBeanOperationInfo;
 import javax.management.MBeanParameterInfo;
 import javax.management.MBeanServerConnection;
-import javax.management.MalformedObjectNameException;
 import javax.management.ObjectInstance;
 import javax.management.ObjectName;
 import javax.management.ReflectionException;
@@ -66,7 +62,6 @@ import javax.management.openmbean.TabularData;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
-import javax.security.auth.login.FailedLoginException;
 
 
 /**
@@ -107,7 +102,10 @@ public class Client {
         "followed by\n" +
         "           comma-delimited params. Pass multiple " +
         "attributes/operations to run\n" +
-        "           more than one per invocation.\n" +
+        "           more than one per invocation. Use commands 'create' and " +
+        "'destroy'\n" +
+        "           to instantiate and unregister beans ('create' takes name " +
+        "of class).\n" +
         "Requirements:\n" +
         " JDK1.5.0. If connecting to a SUN 1.5.0 JDK JMX Agent, remote side" +
         " must be\n" +
@@ -141,10 +139,7 @@ public class Client {
     protected static final Pattern CMD_LINE_ARGS_PATTERN =
         Pattern.compile("^([^=]+)(?:(?:\\=)(.+))?$");
     
-    /**
-     * Comamands for the client have this for a prefix.
-     */
-    private static final String THIS_PREFIX = "this.";
+    private static final String CREATE_CMD_PREFIX = "create=";
     
 	public static void main(String[] args) throws Exception {
         Client client = new Client();
@@ -231,19 +226,7 @@ public class Client {
         JMXConnector jmxc =
             JMXConnectorFactory.connect(rmiurl,formatCredentials(userpass));
         try {
-            MBeanServerConnection mbsc = jmxc.getMBeanServerConnection();
-            if (notEmpty(beanName) && beanName.startsWith(THIS_PREFIX)) {
-                if (beanName.equals(THIS_PREFIX + "create")) {
-                    // We're to create mbean instances.
-                    createBean(mbsc, command);
-                } else if (beanName.equals(THIS_PREFIX + "destroy")) {
-                    destroyBean(mbsc, command);
-                } else {
-                    throw new UnsupportedOperationException(beanName);
-                }
-            } else {
-                doBeans(mbsc, beanName, command);
-            }
+            doBeans(jmxc.getMBeanServerConnection(), beanName, command);
         } finally {
             jmxc.close();
         }
@@ -253,52 +236,35 @@ public class Client {
         return s != null && s.length() > 0;
     }
     
-    protected void createBean(final MBeanServerConnection mbsc,
-            final String[] command)
-    throws Exception {
-        if (command.length != 2) {
-            throw new RuntimeException("Must pass class and object name " +
-                "only (Currently only default constructor supported)");
-        }
-        mbsc.createMBean(command[1], new ObjectName(command[0]));
-    }
-    
-    protected void destroyBean(final MBeanServerConnection mbsc,
-            final String[] command)
-    throws Exception {
-        if (command.length != 1) {
-            throw new RuntimeException("Must pass object name only.");
-        }
-        mbsc.unregisterMBean(new ObjectName(command[0]));
-    }
-    
     protected void doBeans(final MBeanServerConnection mbsc,
-            final String beanName, final String[] command) throws Exception {
-        ObjectName objName = notEmpty(beanName) ?
-                new ObjectName(beanName):  null;
+            final String beanName, final String[] command)
+    throws Exception {
+        ObjectName objName = notEmpty(beanName)? new ObjectName(beanName): null;
         Set beans = mbsc.queryMBeans(objName, null);
         if (beans.size() == 0) {
-            // Complain if passed a nonexistent bean name.
-            logger.severe(objName.getCanonicalName() + " not registered bean");
-            return;
-        }
-        
-        if (beans.size() == 1) {
-            // If only one instance of asked-for bean.
-            doBean(mbsc, (ObjectInstance)beans.iterator().next(), command);
-            return;
-        }
-        
-        // This is case of multiple beans. Print name of each.
-        for (Iterator i = beans.iterator(); i.hasNext();) {
-            Object obj = i.next();
-            if (obj instanceof ObjectName) {
-                System.out.println(((ObjectName) obj).getCanonicalName());
-            } else if (obj instanceof ObjectInstance) {
-                System.out.println(((ObjectInstance) obj).getObjectName()
-                        .getCanonicalName());
+            // No bean found. Check if we are to create a bean?
+            if (command.length == 1 && notEmpty(command[0])
+                    && command[0].startsWith(CREATE_CMD_PREFIX)) {
+                String className =
+                    command[0].substring(CREATE_CMD_PREFIX.length());
+                mbsc.createMBean(className, new ObjectName(beanName));
             } else {
-                logger.severe("Unexpected object type: " + obj);
+                logger.severe(objName.getCanonicalName() + " not registered.");
+            }
+        } else if (beans.size() == 1) {
+            doBean(mbsc, (ObjectInstance) beans.iterator().next(), command);
+        } else {
+            // This is case of multiple beans. Print name of each.
+            for (Iterator i = beans.iterator(); i.hasNext();) {
+                Object obj = i.next();
+                if (obj instanceof ObjectName) {
+                    System.out.println(((ObjectName) obj).getCanonicalName());
+                } else if (obj instanceof ObjectInstance) {
+                    System.out.println(((ObjectInstance) obj).getObjectName()
+                            .getCanonicalName());
+                } else {
+                    logger.severe("Unexpected object type: " + obj);
+                }
             }
         }
     }
@@ -333,6 +299,11 @@ public class Client {
     protected void doSubCommand(MBeanServerConnection mbsc,
             ObjectInstance instance, String subCommand)
     throws Exception {
+        // First, handle special case of our being asked to destroy a bean.
+        if (subCommand.equals("destroy")) {
+            mbsc.unregisterMBean(instance.getObjectName());
+            return;
+        }
         
         // Get attribute and operation info.
         MBeanAttributeInfo [] attributeInfo =

@@ -22,14 +22,15 @@ Options:
            E.g. 'controlRole:secret'
  HOST:PORT Hostname and port to connect to. Required. E.g. localhost:8081.
            Lists registered beans if only USER:PASS and this argument.
- BEANNAME  Optional target bean name. If present we list available operations
+ BEAN      Optional target bean name. If present we list available operations
            and attributes.
  COMMAND   Optional operation to run or attribute to fetch. If none supplied,
            all operations and attributes are listed. Attributes begin with a
            capital letter: e.g. 'Status' or 'Started'. Operations do not.
            Operations can take arguments by adding an '=' followed by
            comma-delimited params. Pass multiple attributes/operations to run
-           more than one per invocation.
+           more than one per invocation. Use commands 'create' and 'destroy'
+           to instantiate and unregister beans ('create' takes name of class).
 Requirements:
  JDK1.5.0. If connecting to a SUN 1.5.0 JDK JMX Agent, remote side must be
  started with system properties such as the following:
