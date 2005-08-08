@@ -10,6 +10,13 @@
   <section name="Downloads">
     <subsection name="Releases">
         <p> <a 
+        href="cmdline-jmxclient-0.10.4.jar">cmdline-jmxclient-0.10.4.jar</a>
+        Added getting of all attributes at once -- pass special
+        <code>Attributes</code> command -- and added
+        <code>create</code> and <code>destroy</code> operations so can
+        instantiate (and remove) MBeans.
+        </p>
+        <p> <a 
         href="cmdline-jmxclient-0.10.3.jar">cmdline-jmxclient-0.10.3.jar</a>
         Added setting of attributes and graceful handling of attribute/operation names that do not adhere to first-letter capitalization convention 
         </p>
