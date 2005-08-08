@@ -46,6 +46,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.management.Attribute;
+import javax.management.AttributeList;
 import javax.management.InstanceNotFoundException;
 import javax.management.IntrospectionException;
 import javax.management.MBeanAttributeInfo;
@@ -106,6 +107,9 @@ public class Client {
         "'destroy'\n" +
         "           to instantiate and unregister beans ('create' takes name " +
         "of class).\n" +
+        "           Pass 'Attributes' to get listing of all attributes and " +
+        "and their\n" +
+        "           values.\n" +
         "Requirements:\n" +
         " JDK1.5.0. If connecting to a SUN 1.5.0 JDK JMX Agent, remote side" +
         " must be\n" +
@@ -362,6 +366,21 @@ public class Client {
                 buffer.append("\n");
             }
             result = buffer;
+        } else if (result instanceof AttributeList) {
+            AttributeList list = (AttributeList)result;
+            if (list.size() <= 0) {
+                result = null;
+            } else {
+                StringBuffer buffer = new StringBuffer("\n");
+                for (Iterator ii = list.iterator(); ii.hasNext();) {
+                    Attribute a = (Attribute)ii.next();
+                    buffer.append(a.getName());
+                    buffer.append(": ");
+                    buffer.append(a.getValue());
+                    buffer.append("\n");
+                }
+                result = buffer;
+            }
         }
         // Only log if a result.
         if (result != null && logger.isLoggable(Level.INFO)) {
@@ -483,6 +502,15 @@ public class Client {
         // to set attribute.
         CommandParse parse = new CommandParse(command);
         if (parse.getArgs() == null || parse.getArgs().length == 0) {
+            // Special-casing.  If the subCommand is 'Attributes', then return
+            // list of all attributes.
+            if (command.equals("Attributes")) {
+                String [] names = new String[infos.length];
+                for (int i = 0; i < infos.length; i++) {
+                    names[i] = infos[i].getName();
+                }
+                return mbsc.getAttributes(instance.getObjectName(), names);
+            }
             return mbsc.getAttribute(instance.getObjectName(), parse.getCmd());
         }
         if (parse.getArgs().length != 1) {
