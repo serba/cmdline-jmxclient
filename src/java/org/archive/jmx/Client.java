@@ -307,6 +307,9 @@ public class Client {
         if (subCommand.equals("destroy")) {
             mbsc.unregisterMBean(instance.getObjectName());
             return;
+        } else if (subCommand.startsWith(CREATE_CMD_PREFIX)) {
+            throw new IllegalArgumentException("You cannot call create " +
+                    "on an already existing bean.");
         }
         
         // Get attribute and operation info.
