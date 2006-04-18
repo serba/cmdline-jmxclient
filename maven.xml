@@ -25,7 +25,7 @@
     </preGoal>
 
     <preGoal name="dist">
-        <!--Put the jar into a subdir named builtjar so I can get at the jar
+        <!--Put the jar into a subdir named built-jar so I can get at the jar
         over in cruisecontrol (Can't use wildcards in the cc config).
         -->
         <mkdir dir="${maven.build.dir}/built-jar" />
