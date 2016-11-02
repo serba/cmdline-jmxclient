@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <project>
     <modelVersion>4.0.0</modelVersion>
-    <groupId>com.lovbomobile</groupId>
+    <groupId>org.archive.jmx</groupId>
     <artifactId>cmdline-jmxclient</artifactId>
     <version>1</version>
 
