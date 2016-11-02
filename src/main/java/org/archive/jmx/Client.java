@@ -25,17 +25,17 @@
  */
 package org.archive.jmx;
 
+import com.google.common.collect.BoundType;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.FieldPosition;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
@@ -43,6 +43,7 @@ import java.util.logging.Logger;
 import java.util.logging.SimpleFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.management.Attribute;
 import javax.management.AttributeList;
@@ -63,6 +64,8 @@ import javax.management.openmbean.TabularData;
 import javax.management.remote.JMXConnector;
 import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
+
+import static java.util.stream.Collectors.*;
 
 
 /**
@@ -651,9 +654,15 @@ public class Client {
                         : new Object[paraminfosLength];
                 for (int i = 0; i < paraminfosLength; i++) {
                     MBeanParameterInfo paraminfo = paraminfos[i];
-                    java.lang.reflect.Constructor c = Class.forName(
-                        paraminfo.getType()).getConstructor(
-                            new Class[] {String.class});
+                    java.lang.reflect.Constructor c;
+                    if (isPrimitive(paraminfo.getType())) {
+                      c = classForPrimitive(paraminfo.getType()).getConstructor(
+                              new Class[]{String.class});
+                    } else {
+                      c = Class.forName(
+                              paraminfo.getType()).getConstructor(
+                              new Class[]{String.class});
+                    }
                     params[i] =
                         c.newInstance(new Object[] {parse.getArgs()[i]});
                     signature[i] = paraminfo.getType();
@@ -663,6 +672,27 @@ public class Client {
             }
         }
         return result;
+    }
+
+    private static ImmutableMap<String, Class> primitivesToWrappers = ImmutableMap.<String, Class>builder().
+            put("boolean", Boolean.class).
+            put("byte", Byte.class).
+            put("char", Character.class).
+            put("short", Short.class).
+            put("int", Integer.class).
+            put("long", Long.class).
+            put("float", Float.class).
+            put("doulbe", Double.class).
+            build();
+
+    private static boolean isPrimitive(String type) {
+        return primitivesToWrappers.entrySet().
+                stream().map(x -> x.getKey()).
+                collect(toList()).contains(type);
+    }
+
+    private static Class classForPrimitive(String primitive) {
+        return primitivesToWrappers.get(primitive);
     }
 
     protected String listOptions(MBeanServerConnection mbsc,
